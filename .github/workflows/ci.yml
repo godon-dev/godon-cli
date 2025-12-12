@@ -32,7 +32,7 @@ jobs:
 
         # Set environment variables for this session
         export SSL_CERT_FILE="/etc/ssl/certs/ca-bundle.crt"
-        export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-bundle.crt" 
+        export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-bundle.crt"
         export CURL_CA_BUNDLE="/etc/ssl/certs/ca-bundle.crt"
 
         # Add to nix.conf for daemon
@@ -58,3 +58,135 @@ jobs:
         ls -la $(nix path-info .#default)/bin/ || echo "$out/bin not found"
         echo "Testing compiled binary with direct path..."
         $(nix path-info .#default)/bin/godon_cli --help
+
+    - name: Start Prism mock container
+      run: |
+        # Download the OpenAPI spec with retry
+        echo "Downloading OpenAPI spec..."
+        curl -L --retry 3 --retry-delay 5 -o openapi.yml \
+          https://raw.githubusercontent.com/godon-dev/godon-images/main/images/godon-api/openapi.yml
+
+        # Verify the spec was downloaded
+        if [ ! -f openapi.yml ]; then
+          echo "Failed to download OpenAPI spec"
+          exit 1
+        fi
+        echo "OpenAPI spec downloaded successfully"
+        echo "=== Spec file size ==="
+        wc -l openapi.yml
+        echo "=== First 20 lines of spec ==="
+        head -20 openapi.yml
+        echo "=== Paths section ==="
+        grep -A 20 "^paths:" openapi.yml || echo "No paths section found"
+        echo "=== All path definitions ==="
+        grep -E "^\s*/" openapi.yml || echo "No path definitions found"
+
+        # Start Prism container in background
+        docker run -d --name prism -p 4010:4010 \
+          -v $(pwd)/openapi.yml:/tmp/openapi.yml \
+          stoplight/prism:4 \
+          mock --host 0.0.0.0 /tmp/openapi.yml
+
+        # Check if container started
+        echo "Checking container status..."
+        docker ps | grep prism || echo "Container not found in docker ps"
+        echo "=== Container logs ==="
+        docker logs prism || echo "No logs available"
+        echo "=== Container inspection ==="
+        docker inspect prism | grep -A 10 -B 10 "State" || echo "Could not inspect container"
+        echo "=== Network ports ==="
+        docker port prism || echo "Could not get port mappings"
+
+        # Wait for Prism to start
+        echo "Waiting for Prism to start..."
+        sleep 15
+
+        # Test basic connectivity
+        echo "Testing basic connectivity to localhost:4010..."
+        curl -v http://localhost:4010 || echo "Basic connection failed"
+
+        # Verify Prism is running with retry
+        for i in {1..5}; do
+          echo "=== Attempt $i: Testing Prism health ==="
+          if curl -v http://localhost:4010/health 2>&1 | head -10; then
+            echo "✅ Prism container started successfully on port 4010"
+            break
+          else
+            echo "❌ Attempt $i: Prism not ready yet, waiting..."
+            echo "Container still running?"
+            docker ps | grep prism || echo "Container stopped"
+            echo "Recent logs:"
+            docker logs --tail 5 prism
+            sleep 5
+          fi
+        done
+
+        # Test available endpoints
+        echo "=== Testing available Prism endpoints ==="
+        echo "Testing root path:"
+        curl -v http://localhost:4010/ 2>&1 | head -10 || echo "Root path failed"
+        
+        echo "Testing /v0 path:"
+        curl -v http://localhost:4010/v0 2>&1 | head -10 || echo "/v0 path failed"
+        
+        echo "Testing /v0/breeders:"
+        curl -v http://localhost:4010/v0/breeders 2>&1 | head -10 || echo "/v0/breeders failed"
+        
+        echo "Testing OpenAPI spec:"
+        curl -v http://localhost:4010/openapi.json 2>&1 | head -5 || echo "OpenAPI spec failed"
+        
+        echo "=== Testing exact URLs that CLI will use ==="
+        echo "Testing /breeders (what CLI should call):"
+        curl -v http://localhost:4010/breeders 2>&1 | head -10 || echo "/breeders failed"
+        
+        echo "Testing POST /breeders:"
+        curl -X POST -H "Content-Type: application/json" -d '{"name":"test"}' \
+          http://localhost:4010/breeders 2>&1 | head -10 || echo "POST /breeders failed"
+
+    - name: Integration tests against Prism mock
+      run: |
+        # Get the binary path
+        BINARY_PATH=$(nix path-info .#default)/bin/godon_cli
+
+        echo "Running integration tests against Prism mock..."
+
+        # Test breeder list
+        echo "Testing: breeder list"
+        $BINARY_PATH --hostname=localhost --port=4010 breeder list
+
+        # Create test YAML files using echo
+        echo 'name: "Test Breeder"' > test_breeder.yml
+        echo 'config: >' >> test_breeder.yml
+        echo '  {"setting1": "value1", "setting2": 42}' >> test_breeder.yml
+
+        echo "Testing: breeder create"
+        $BINARY_PATH --hostname=localhost --port=4010 breeder create --file=test_breeder.yml
+
+        # Test breeder show with a mock UUID
+        echo "Testing: breeder show"
+        $BINARY_PATH --hostname=localhost --port=4010 breeder show --id=550e8400-e29b-41d4-a716-446655440000
+
+        # Create update test file
+        echo 'uuid: "550e8400-e29b-41d4-a716-446655440000"' > test_breeder_update.yml
+        echo 'name: "Updated Test Breeder"' >> test_breeder_update.yml
+        echo 'description: "Updated integration test breeder"' >> test_breeder_update.yml
+        echo 'config: >' >> test_breeder_update.yml
+        echo '  {"setting1": "updated_value1", "setting2": 100, "new_setting": "new_value"}' >> test_breeder_update.yml
+
+        echo "Testing: breeder update"
+        $BINARY_PATH --hostname=localhost --port=4010 breeder update --file=test_breeder_update.yml
+
+        # Test breeder purge
+        echo "Testing: breeder purge"
+        $BINARY_PATH --hostname=localhost --port=4010 breeder purge --id=550e8400-e29b-41d4-a716-446655440000
+
+        # Test help commands
+        echo "Testing: help commands"
+        $BINARY_PATH --help
+        $BINARY_PATH breeder --help || true  # May fail but tests argument parsing
+
+    - name: Cleanup Prism container
+      if: always()
+      run: |
+        docker stop prism || true
+        docker rm prism || true

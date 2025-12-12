@@ -7,7 +7,7 @@ license       = "AGPL-3.0"
 
 # Dependencies
 
-requires "nim >= 2.0.0"
+requires "nim >= 2.0.0", "yaml"
 
 # Task definitions
 

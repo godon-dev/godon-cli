@@ -4,24 +4,28 @@
 import std/json
 
 type
-  Breeder* = object
-    uuid*: string
+  BreederSummary* = object
+    id*: string
     name*: string
-    description*: string
+    status*: string
+    createdAt*: string
+
+  Breeder* = object
+    id*: string
+    name*: string
+    status*: string
     config*: JsonNode
     createdAt*: string
-    updatedAt*: string
 
   BreederCreateRequest* = object
     name*: string
-    description*: string
-    config*: JsonNode
+    config*: string
 
   BreederUpdateRequest* = object
     uuid*: string
     name*: string
     description*: string
-    config*: JsonNode
+    config*: string
 
   ApiConfig* = object
     hostname*: string
