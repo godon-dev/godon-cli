@@ -38,8 +38,10 @@
           buildPhase = ''
             echo "Building godon-cli version: ${version}"
             
-            # Refresh package list and build
-            nimble refresh
+            # Refresh package list and install dependencies only
+            nimble refresh --verbose
+            # Install yaml dependency without building our package
+            nimble install -y --depsOnly --verbose
             
             # Build the CLI
             mkdir -p bin

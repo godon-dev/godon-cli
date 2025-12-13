@@ -2,50 +2,53 @@
 ## Implementation of breeder-related API endpoints
 
 import std/[httpclient, json, strutils, uri]
+import yaml
 import client, types
 
-proc listBreeders*(client: GodonClient): ApiResponse[seq[Breeder]] =
+proc listBreeders*(client: GodonClient): ApiResponse[seq[BreederSummary]] =
   ## List all configured breeders
   try:
     let url = client.baseUrl() & "/breeders"
     let response = client.httpClient.get(url)
-    result = handleResponse[seq[Breeder]](client, response)
+    result = handleResponse[seq[BreederSummary]](client, response)
   except CatchableError as e:
-    result = ApiResponse[seq[Breeder]](success: false, data: @[], error: e.msg)
+    result = ApiResponse[seq[BreederSummary]](success: false, data: @[], error: e.msg)
 
-proc createBreeder*(client: GodonClient, request: BreederCreateRequest): ApiResponse[Breeder] =
+proc createBreeder*(client: GodonClient, request: BreederCreateRequest): ApiResponse[BreederSummary] =
   ## Create a new breeder
   try:
     let url = client.baseUrl() & "/breeders"
-    let jsonData = %*request
+    # Convert config string to JsonNode
+    var jsonData = %*{
+      "name": request.name,
+      "config": parseJson(request.config)
+    }
+    echo "Sending JSON: ", $jsonData
+    client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
     let response = client.httpClient.post(url, $jsonData)
-    result = handleResponse[Breeder](client, response)
+    result = handleResponse[BreederSummary](client, response)
   except CatchableError as e:
-    result = ApiResponse[Breeder](success: false, data: default(Breeder), error: e.msg)
+    result = ApiResponse[BreederSummary](success: false, data: default(BreederSummary), error: e.msg)
 
 proc parseBreederFromYaml*(yamlContent: string): BreederCreateRequest =
-  ## Parse breeder configuration from YAML content
-  ## Note: This would require a YAML library like yaml.nim
-  ## For now, this is a placeholder for the YAML parsing logic
-  ## Users can pass JSON directly or we can add proper YAML parsing later
+  ## Parse breeder configuration from YAML content using yaml library
   try:
-    let jsonNode = parseJson(yamlContent)
-    result = jsonNode.to(BreederCreateRequest)
+    result = yaml.loadAs[BreederCreateRequest](yamlContent)
   except CatchableError as e:
-    raise newException(ValueError, "Failed to parse YAML/JSON: " & e.msg)
+    raise newException(ValueError, "Failed to parse YAML: " & e.msg)
 
-proc createBreederFromYaml*(client: GodonClient, yamlContent: string): ApiResponse[Breeder] =
+proc createBreederFromYaml*(client: GodonClient, yamlContent: string): ApiResponse[BreederSummary] =
   ## Create a breeder from YAML content
   try:
     let request = parseBreederFromYaml(yamlContent)
     result = client.createBreeder(request)
   except CatchableError as e:
-    result = ApiResponse[Breeder](success: false, data: default(Breeder), error: e.msg)
+    result = ApiResponse[BreederSummary](success: false, data: default(BreederSummary), error: e.msg)
 
 proc getBreeder*(client: GodonClient, uuid: string): ApiResponse[Breeder] =
   ## Get breeder details by UUID
   try:
-    let url = client.baseUrl() & "/breeder?uuid=" & encodeUrl(uuid)
+    let url = client.baseUrl() & "/breeders/" & encodeUrl(uuid)
     let response = client.httpClient.get(url)
     result = handleResponse[Breeder](client, response)
   except CatchableError as e:
@@ -54,8 +57,14 @@ proc getBreeder*(client: GodonClient, uuid: string): ApiResponse[Breeder] =
 proc updateBreeder*(client: GodonClient, request: BreederUpdateRequest): ApiResponse[Breeder] =
   ## Update an existing breeder
   try:
-    let url = client.baseUrl() & "/breeders"
-    let jsonData = %*request
+    let url = client.baseUrl() & "/breeders/" & encodeUrl(request.uuid)
+    # Convert config string to JsonNode
+    var jsonData = %*{
+      "name": request.name,
+      "description": request.description,
+      "config": parseJson(request.config)
+    }
+    client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
     let response = client.httpClient.put(url, $jsonData)
     result = handleResponse[Breeder](client, response)
   except CatchableError as e:
@@ -64,10 +73,9 @@ proc updateBreeder*(client: GodonClient, request: BreederUpdateRequest): ApiResp
 proc parseBreederUpdateFromYaml*(yamlContent: string): BreederUpdateRequest =
   ## Parse breeder update configuration from YAML content
   try:
-    let jsonNode = parseJson(yamlContent)
-    result = jsonNode.to(BreederUpdateRequest)
+    result = yaml.loadAs[BreederUpdateRequest](yamlContent)
   except CatchableError as e:
-    raise newException(ValueError, "Failed to parse YAML/JSON: " & e.msg)
+    raise newException(ValueError, "Failed to parse YAML: " & e.msg)
 
 proc updateBreederFromYaml*(client: GodonClient, yamlContent: string): ApiResponse[Breeder] =
   ## Update a breeder from YAML content
@@ -80,7 +88,7 @@ proc updateBreederFromYaml*(client: GodonClient, yamlContent: string): ApiRespon
 proc deleteBreeder*(client: GodonClient, uuid: string): ApiResponse[JsonNode] =
   ## Delete/purge a breeder by UUID
   try:
-    let url = client.baseUrl() & "/breeder?uuid=" & encodeUrl(uuid)
+    let url = client.baseUrl() & "/breeders/" & encodeUrl(uuid)
     let response = client.httpClient.delete(url)
     result = handleResponse[JsonNode](client, response)
   except CatchableError as e:
