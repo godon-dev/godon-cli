@@ -12,7 +12,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         
         # Build using nimble following the godon-api pattern
-        godon-cli = { version ? builtins.getEnv "GODON_VERSION" or "DEV_BUILD" }: pkgs.stdenv.mkDerivation {
+        godon-cli = { version ? (if builtins.getEnv "GODON_VERSION" == "" then "DEV_BUILD" else builtins.getEnv "GODON_VERSION") }: pkgs.stdenv.mkDerivation {
           pname = "godon-cli";
           inherit version;
           src = ./.;
