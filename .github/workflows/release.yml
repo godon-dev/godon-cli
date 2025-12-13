@@ -79,14 +79,15 @@ jobs:
         export SSL_CERT_FILE="/etc/ssl/certs/ca-bundle.crt"
         export NIX_SSL_CERT_FILE="/etc/ssl/certs/ca-bundle.crt"
         export CURL_CA_BUNDLE="/etc/ssl/certs/ca-bundle.crt"
+        export GODON_VERSION="${{ steps.version.outputs.VERSION }}"
 
-        # Build with version from release tag
-        nix --experimental-features "nix-command flakes" build .#godon-cli-custom-${{ steps.version.outputs.VERSION }}
+        # Build with version from environment variable
+        nix --experimental-features "nix-command flakes" build --verbose
 
     - name: Prepare release assets
       run: |
-        # Get the build output path
-        OUTPUT_PATH=$(nix --experimental-features "nix-command flakes" path-info .#godon-cli-custom-${{ steps.version.outputs.VERSION }})
+        # Get the build output path using same approach as CI
+        OUTPUT_PATH=$(nix path-info .#default)
 
         # Create release directory
         mkdir -p release
