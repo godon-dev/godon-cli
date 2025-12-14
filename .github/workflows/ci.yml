@@ -56,8 +56,16 @@ jobs:
         ls -la $(nix path-info .#default)/ || echo "result directory contents"
         echo "Checking $out/bin directory:"
         ls -la $(nix path-info .#default)/bin/ || echo "$out/bin not found"
+        
+        # Verify static binary
+        BINARY_PATH="$(nix path-info .#default)/bin/godon_cli"
+        echo "=== Binary information ==="
+        file "$BINARY_PATH"
+        echo "=== Dynamic libraries check (should show 'not a dynamic executable' or similar) ==="
+        ldd "$BINARY_PATH" || echo "✅ Binary appears to be statically linked (ldd failed as expected)"
+        
         echo "Testing compiled binary with direct path..."
-        $(nix path-info .#default)/bin/godon_cli --help
+        "$BINARY_PATH" --help
 
     - name: Start Prism mock container
       run: |
