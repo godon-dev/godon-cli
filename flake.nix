@@ -10,8 +10,9 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        pkgsStatic = pkgs.pkgsStatic;
         
-        # Build static binary using glibc with proper static libraries
+        # Build static binary using stdenvStatic
         godon-cli = { version ? (if builtins.getEnv "GODON_VERSION" == "" then "DEV_BUILD" else builtins.getEnv "GODON_VERSION") }: pkgs.stdenv.mkDerivation {
           pname = "godon-cli";
           inherit version;
@@ -25,15 +26,19 @@
             pkg-config
           ];
           
-          buildInputs = with pkgs; [
-            openssl.dev
-            libgcc
+          buildInputs = with pkgsStatic; [
+            openssl
+            zlib
           ];
+          
+          hardeningDisable = [ "pie" ];
           
           env = {
             SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             CURL_CA_BUNDLE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+            NIX_CFLAGS_LINK = "-static";
+            NIX_LDFLAGS = "-static";
           };
           
           configurePhase = ''
@@ -48,10 +53,10 @@
             # Install yaml dependency without building our package
             nimble install -y --depsOnly --verbose
             
-            # Build the CLI with static linking using glibc
+            # Build the CLI with static libraries and explicit linking
             mkdir -p bin
             nim c --hints:on --path:src -d:release -d:ssl -d:VERSION="${version}" \
-              --passL:"-static-libgcc" \
+              --passL:"-static" \
               -o:bin/godon_cli src/godon_cli.nim || {
               echo "Compilation failed"
               exit 1
