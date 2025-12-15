@@ -26,9 +26,8 @@
           ];
           
           buildInputs = with pkgs; [
-            openssl.dev
-            libgcc
-          ];
+            openssl
+                      ];
           
           env = {
             SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
@@ -41,29 +40,17 @@
           '';
           
           buildPhase = ''
-            echo "Building godon-cli version: ${version} (static binary)"
+            echo "Building godon-cli version: ${version}"
             
             # Refresh package list and install dependencies only
             nimble refresh --verbose
             # Install yaml dependency without building our package
             nimble install -y --depsOnly --verbose
             
-            # Build the CLI with static linking using glibc
+            # Build the CLI
             mkdir -p bin
             nim c --hints:on --path:src -d:release -d:ssl -d:VERSION="${version}" \
-              --passL:"-static-libgcc" \
-              -o:bin/godon_cli src/godon_cli.nim || {
-              echo "Compilation failed"
-              exit 1
-            }
-            
-            echo "Static build completed successfully!"
-            
-            # Verify the binary is statically linked
-            echo "=== Binary information ==="
-            file bin/godon_cli
-            echo "=== Dynamic libraries check (should show 'not a dynamic executable' or similar) ==="
-            ldd bin/godon_cli || echo "Binary appears to be statically linked (ldd failed as expected)"
+              -o:bin/godon_cli src/godon_cli.nim
           '';
           
           installPhase = ''
