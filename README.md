@@ -11,23 +11,36 @@ A Nim-based CLI tool for controlling and managing the Godon optimizer breeders v
 
 ## Installation
 
-### Binary Download
+### Container Image (Recommended)
 
-Download the latest release from the [GitHub Releases](https://github.com/godon-dev/godon-cli/releases) page:
+The godon-cli is distributed as a container image from the [godon-images](https://github.com/godon-dev/godon-images) repository. This provides distro-agnostic execution with all dependencies included.
 
 ```bash
-# Download and extract (replace VERSION with actual version)
-wget https://github.com/godon-dev/godon-cli/releases/download/VERSION/godon-cli-VERSION-x86_64-linux.tar.gz
-tar -xzf godon-cli-VERSION-x86_64-linux.tar.gz
+# Run directly
+docker run ghcr.io/godon-dev/godon-cli:latest --help
 
-# Make executable and move to PATH
-chmod +x godon_cli
-sudo mv godon_cli /usr/local/bin/
+# Example: List breeders
+docker run ghcr.io/godon-dev/godon-cli:latest breeder list
+
+# Mount working directory for file operations
+docker run -v $(pwd):/work -w /work ghcr.io/godon-dev/godon-cli:latest breeder create --file config.yaml
 ```
 
-### Docker
+### Building from Source
 
-Docker images are built from the [godon-images](https://github.com/godon-dev/godon-images) repository and include the CLI binary.
+You can build the CLI from source using Nix flakes (requires Linux x86_64):
+
+```bash
+# Clone the repository
+git clone https://github.com/godon-dev/godon-cli.git
+cd godon-cli
+
+# Build using Nix flakes
+nix --experimental-features "nix-command flakes" build
+
+# Run the built binary
+./result/bin/godon_cli --help
+```
 
 ## Usage
 
@@ -116,13 +129,15 @@ This project is licensed under the GNU Affero General Public License v3.0. See t
 
 ## Releasing
 
-Releases are automated through GitHub Actions:
+Releases are source-only through GitHub Actions:
 
 1. Create a new release on GitHub with a semantic version tag (e.g., `1.0.0`, `1.0.0-alpha.1`)
-2. GitHub Actions will automatically build and upload `godon-cli-VERSION-x86_64-linux.tar.gz`
-3. The compressed archive will be available in the release assets
+2. GitHub automatically provides source archives (tar.gz, zip) for the release
+3. Container images are built from the [godon-images](https://github.com/godon-dev/godon-images) repository using this release
 
 **Version format**: Must follow [Semantic Versioning](https://semver.org/) (e.g., `1.0.0`, `2.1.3`, `1.0.0-alpha.1`, `1.0.0+build.1`)
+
+**Note**: This repository focuses on source code releases. Binary distribution is handled via container images for distro-agnostic compatibility.
 
 ## Changelog
 

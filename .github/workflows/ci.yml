@@ -1,4 +1,4 @@
-name: Build and Test Godon CLI
+name: build_and_test_godon_cli
 
 on:
   pull_request:
@@ -56,14 +56,14 @@ jobs:
         ls -la $(nix path-info .#default)/ || echo "result directory contents"
         echo "Checking $out/bin directory:"
         ls -la $(nix path-info .#default)/bin/ || echo "$out/bin not found"
-        
+
         # Verify static binary
         BINARY_PATH="$(nix path-info .#default)/bin/godon_cli"
         echo "=== Binary information ==="
         file "$BINARY_PATH"
         echo "=== Dynamic libraries check (should show 'not a dynamic executable' or similar) ==="
         ldd "$BINARY_PATH" || echo "✅ Binary appears to be statically linked (ldd failed as expected)"
-        
+
         echo "Testing compiled binary with direct path..."
         "$BINARY_PATH" --help
 
@@ -133,20 +133,20 @@ jobs:
         echo "=== Testing available Prism endpoints ==="
         echo "Testing root path:"
         curl -v http://localhost:4010/ 2>&1 | head -10 || echo "Root path failed"
-        
+
         echo "Testing /v0 path:"
         curl -v http://localhost:4010/v0 2>&1 | head -10 || echo "/v0 path failed"
-        
+
         echo "Testing /v0/breeders:"
         curl -v http://localhost:4010/v0/breeders 2>&1 | head -10 || echo "/v0/breeders failed"
-        
+
         echo "Testing OpenAPI spec:"
         curl -v http://localhost:4010/openapi.json 2>&1 | head -5 || echo "OpenAPI spec failed"
-        
+
         echo "=== Testing exact URLs that CLI will use ==="
         echo "Testing /breeders (what CLI should call):"
         curl -v http://localhost:4010/breeders 2>&1 | head -10 || echo "/breeders failed"
-        
+
         echo "Testing POST /breeders:"
         curl -X POST -H "Content-Type: application/json" -d '{"name":"test"}' \
           http://localhost:4010/breeders 2>&1 | head -10 || echo "POST /breeders failed"
