@@ -38,3 +38,106 @@ jobs:
             exit 1
             ;;
         esac
+
+  calculate-and-upload-hashes:
+    runs-on: ubuntu-latest
+    needs: validate-release
+    if: success()
+    
+    steps:
+    - name: Wait for release assets to be available
+      run: |
+        echo "Waiting for GitHub to generate source archives..."
+        sleep 30
+    
+    - name: Download release assets
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ github.ref_name }}
+      run: |
+        # Extract version from release tag
+        VERSION="$RELEASE_TAG"
+        if [[ "$VERSION" == refs/tags/* ]]; then
+          VERSION=${VERSION#refs/tags/}
+        fi
+        
+        echo "Processing release: $VERSION"
+        
+        # Create downloads directory
+        mkdir -p downloads
+        
+        # Get release info and download default source archives
+        RELEASE_API_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION"
+        
+        echo "Fetching release info from: $RELEASE_API_URL"
+        
+        # Get the upload URL for the release
+        UPLOAD_URL=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "$RELEASE_API_URL" | jq -r '.upload_url')
+        
+        # Download the default source archives (tarball and zipball)
+        TARBALL_URL="https://github.com/${{ github.repository }}/archive/refs/tags/$VERSION.tar.gz"
+        ZIPBALL_URL="https://github.com/${{ github.repository }}/archive/refs/tags/$VERSION.zip"
+        
+        echo "Downloading source archives..."
+        wget -O "downloads/${{ github.event.repository.name }}-$VERSION.tar.gz" "$TARBALL_URL"
+        wget -O "downloads/${{ github.event.repository.name }}-$VERSION.zip" "$ZIPBALL_URL"
+        
+        echo "Downloaded files:"
+        ls -la downloads/
+    
+    - name: Calculate hashes
+      run: |
+        cd downloads
+        
+        # Calculate SHA256 and SHA512 for each archive
+        for file in *.tar.gz *.zip; do
+          if [[ -f "$file" ]]; then
+            echo "Calculating hashes for $file..."
+            
+            # SHA256
+            sha256sum "$file" > "${file}.sha256"
+            echo "SHA256(${file}) = $(sha256sum "$file" | cut -d' ' -f1)"
+            
+            # SHA512
+            sha512sum "$file" > "${file}.sha512"
+            echo "SHA512(${file}) = $(sha512sum "$file" | cut -d' ' -f1)"
+          fi
+        done
+        
+        echo "Generated hash files:"
+        ls -la *.sha256 *.sha512
+    
+    - name: Upload hash files to release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ github.ref_name }}
+      run: |
+        # Extract version from release tag
+        VERSION="$RELEASE_TAG"
+        if [[ "$VERSION" == refs/tags/* ]]; then
+          VERSION=${VERSION#refs/tags/}
+        fi
+        
+        # Get release ID
+        RELEASE_API_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION"
+        UPLOAD_URL=$(curl -s -H "Authorization: token $GITHUB_TOKEN" "$RELEASE_API_URL" | jq -r '.upload_url' | sed 's/{?name,label}//')
+        
+        echo "Uploading hash files to release..."
+        
+        # Upload each hash file
+        cd downloads
+        for hash_file in *.sha256 *.sha512; do
+          if [[ -f "$hash_file" ]]; then
+            echo "Uploading $hash_file..."
+            
+            curl -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$hash_file" \
+              "${UPLOAD_URL}?name=${hash_file}"
+            
+            echo "Uploaded $hash_file successfully"
+          fi
+        done
+        
+        echo "All hash files uploaded to release"
