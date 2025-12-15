@@ -57,6 +57,19 @@ godon_cli breeder list
 godon_cli --hostname api.example.com --port 9090 breeder list
 ```
 
+### Configuration Options
+
+```bash
+# Connect to a different API server
+godon_cli --hostname api.example.com --port 9090 breeder list
+
+# Use HTTPS with SSL verification
+godon_cli --hostname https://api.example.com --port 443 breeder list
+
+# Use HTTPS but skip SSL verification (for development/testing)
+godon_cli --hostname https://localhost:8443 --insecure breeder list
+```
+
 ### Breeder Management
 
 #### Create a Breeder
@@ -116,7 +129,13 @@ The CLI connects to the Godon API using these default settings:
 You can override these using command-line flags:
 
 ```bash
+# Basic configuration
 godon_cli --hostname api.example.com --port 9090 --api-version v1 breeder list
+
+# Protocol and SSL options
+godon_cli --hostname http://api.example.com --port 80 breeder list     # HTTP (explicit)
+godon_cli --hostname https://api.example.com --port 443 breeder list    # HTTPS (secure)
+godon_cli --hostname https://localhost --port 8443 --insecure breeder list  # HTTPS (insecure)
 ```
 
 ## API Specification

@@ -1,7 +1,7 @@
 ## Godon HTTP Client
 ## Core HTTP client for Godon API
 
-import std/[httpclient, json, uri, strutils]
+import std/[httpclient, json, uri, strutils, net]
 import types
 
 const
@@ -13,10 +13,12 @@ type
   GodonClient* = ref object
     config*: ApiConfig
     httpClient*: HttpClient
+    insecure*: bool
 
 proc newGodonClient*(hostname: string = DefaultHostname, 
                      port: int = DefaultPort, 
-                     apiVersion: string = DefaultApiVersion): GodonClient =
+                     apiVersion: string = DefaultApiVersion,
+                     insecure: bool = false): GodonClient =
   ## Create a new Godon API client
   let config = ApiConfig(
     hostname: hostname,
@@ -24,12 +26,35 @@ proc newGodonClient*(hostname: string = DefaultHostname,
     apiVersion: apiVersion
   )
   
-  let httpClient = newHttpClient()
-  GodonClient(config: config, httpClient: httpClient)
+  # Configure HTTP client with SSL verification settings
+  var httpClient: HttpClient
+  if insecure:
+    # Create insecure SSL context that skips certificate verification
+    let sslContext = newContext(verifyMode = CVerifyNone)
+    httpClient = newHttpClient(sslContext = sslContext)
+  else:
+    httpClient = newHttpClient()
+  
+  GodonClient(config: config, httpClient: httpClient, insecure: insecure)
 
 proc baseUrl*(client: GodonClient): string =
   ## Get the base URL for API requests
-  result = "http://" & client.config.hostname & ":" & $client.config.port
+  ## Auto-detect protocol if hostname includes https:// or http:// prefix
+  let scheme = if client.config.hostname.startsWith("https://"):
+                  "https"
+                elif client.config.hostname.startsWith("http://"):
+                  "http"
+                else:
+                  "http"  # default to HTTP
+  
+  # Strip protocol prefix from hostname if present
+  let cleanHost = if client.config.hostname.startsWith("https://") or 
+                     client.config.hostname.startsWith("http://"):
+                     client.config.hostname.split("://", 1)[1]
+                   else:
+                     client.config.hostname
+  
+  result = scheme & "://" & cleanHost & ":" & $client.config.port
 
 proc handleResponse*[T](client: GodonClient; response: Response): ApiResponse[T] =
   ## Handle HTTP response and convert to ApiResponse

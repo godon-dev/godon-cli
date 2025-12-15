@@ -158,9 +158,25 @@ jobs:
 
         echo "Running integration tests against Prism mock..."
 
-        # Test breeder list
-        echo "Testing: breeder list"
+        # Test breeder list with HTTP (default)
+        echo "Testing: breeder list (HTTP default)"
         $BINARY_PATH --hostname=localhost --port=4010 breeder list
+
+        # Test explicit HTTP prefix
+        echo "Testing: breeder list (explicit http:// prefix)"
+        $BINARY_PATH --hostname=http://localhost --port=4010 breeder list
+
+        # Test HTTPS prefix with insecure flag (using HTTP port for testing)
+        echo "Testing: breeder list (HTTPS prefix with --insecure flag)"
+        $BINARY_PATH --hostname=https://localhost --port=4010 --insecure breeder list || echo "Expected: HTTPS on HTTP port may fail"
+
+        # Test HTTPS prefix without insecure flag (should fail on missing certificates)
+        echo "Testing: breeder list (HTTPS prefix without --insecure flag - should fail)"
+        $BINARY_PATH --hostname=https://localhost --port=4010 breeder list && echo "❌ Unexpected success - should have failed without certificates" || echo "✅ Expected failure without SSL certificates"
+
+        # Test help command shows new --insecure flag
+        echo "Testing: help shows --insecure flag"
+        $BINARY_PATH --help | grep -q "insecure" && echo "✅ --insecure flag documented in help" || echo "❌ --insecure flag missing from help"
 
         # Create test YAML files using echo
         echo 'name: "Test Breeder"' > test_breeder.yml

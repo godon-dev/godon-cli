@@ -18,6 +18,7 @@ Global Options:
   --hostname, -h <host>     Godon hostname (default: localhost)
   --port, -p <port>         Godon port (default: 8080)
   --api-version, -v <ver>   API version (default: v0)
+  --insecure                Skip SSL certificate verification (HTTPS only)
   --help, -h                Show this help message
 
 Examples:
@@ -31,11 +32,12 @@ proc writeError(message: string) =
   stderr.writeLine("Error: " & message)
   quit(1)
 
-proc parseArgs(): (string, string, int, string, seq[string]) =
+proc parseArgs(): (string, string, int, string, bool, seq[string]) =
   var command = ""
   var hostname = "localhost"
   var port = 8080
   var apiVersion = "v0"
+  var insecure = false
   var args: seq[string] = @[]
 
   var p = initOptParser(commandLineParams())
@@ -67,6 +69,8 @@ proc parseArgs(): (string, string, int, string, seq[string]) =
       of "id":
         # Reconstruct as argument for subcommand parsing  
         args.add("--id=" & val)
+      of "insecure":
+        insecure = true
       of "help", "h":
         writeHelp()
         quit(0)
@@ -80,7 +84,7 @@ proc parseArgs(): (string, string, int, string, seq[string]) =
     writeHelp()
     quit(0)
 
-  (command, hostname, port, apiVersion, args)
+  (command, hostname, port, apiVersion, insecure, args)
 
 proc handleBreederCommand(client: GodonClient, command: string, args: seq[string]) =
   let subCommand = if args.len > 0: args[0] else: ""
@@ -192,9 +196,9 @@ proc handleBreederCommand(client: GodonClient, command: string, args: seq[string
   else:
     writeError("Unknown breeder command: " & subCommand)
 
-let (command, hostname, port, apiVersion, args) = parseArgs()
+let (command, hostname, port, apiVersion, insecure, args) = parseArgs()
 
-let godonClient = newGodonClient(hostname, port, apiVersion)
+let godonClient = newGodonClient(hostname, port, apiVersion, insecure)
 
 case command:
 of "breeder":
