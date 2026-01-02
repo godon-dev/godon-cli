@@ -72,12 +72,17 @@ proc handleResponse*[T](client: GodonClient; response: Response): ApiResponse[T]
             if value.kind == JArray:
               result = ApiResponse[T](success: true, data: value.to(T), error: "")
               return
-        # Check for wrapped single object responses
+        # For single objects, try direct conversion first (bare objects)
         else:
-          for key, value in jsonData.pairs:
-            if value.kind == JObject:
-              result = ApiResponse[T](success: true, data: value.to(T), error: "")
-              return
+          try:
+            result = ApiResponse[T](success: true, data: jsonData.to(T), error: "")
+            return
+          except CatchableError:
+            # If direct conversion fails, try finding wrapped object
+            for key, value in jsonData.pairs:
+              if value.kind == JObject:
+                result = ApiResponse[T](success: true, data: value.to(T), error: "")
+                return
       
       # Fallback to direct conversion
       result = ApiResponse[T](success: true, data: jsonData.to(T), error: "")
