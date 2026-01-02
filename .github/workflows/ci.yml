@@ -11,6 +11,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        clean: true
+
+    - name: Clean working directory
+      run: |
+        git clean -ffdx
+        git status
 
     - name: Install Nix
       uses: cachix/install-nix-action@v25
@@ -69,6 +77,13 @@ jobs:
 
     - name: Start Prism mock container
       run: |
+        # Docker debug info
+        echo "=== Docker Debug Info ==="
+        docker --version
+        docker info
+        echo "=== Checking Docker daemon ==="
+        docker ps
+
         # Download the OpenAPI spec with retry
         echo "Downloading OpenAPI spec..."
         curl -L --retry 3 --retry-delay 5 -o openapi.yml \
@@ -90,44 +105,68 @@ jobs:
         grep -E "^\s*/" openapi.yml || echo "No path definitions found"
 
         # Start Prism container in background
+        echo "=== Starting Prism container ==="
         docker run -d --name prism -p 4010:4010 \
+          --log-driver json-file \
+          --log-opt max-size=10m \
           -v $(pwd)/openapi.yml:/tmp/openapi.yml \
           stoplight/prism:4 \
           mock --host 0.0.0.0 /tmp/openapi.yml
 
         # Check if container started
-        echo "Checking container status..."
-        docker ps | grep prism || echo "Container not found in docker ps"
-        echo "=== Container logs ==="
+        echo "=== Checking container status ==="
+        sleep 5
+        docker ps -a | grep prism || echo "Container not found in docker ps"
+        
+        echo "=== Container detailed info ==="
+        docker ps -a --filter name=prism
         docker logs prism || echo "No logs available"
+        
         echo "=== Container inspection ==="
-        docker inspect prism | grep -A 10 -B 10 "State" || echo "Could not inspect container"
+        docker inspect prism || echo "Could not inspect container"
         echo "=== Network ports ==="
         docker port prism || echo "Could not get port mappings"
 
-        # Wait for Prism to start
-        echo "Waiting for Prism to start..."
-        sleep 15
-
-        # Test basic connectivity
-        echo "Testing basic connectivity to localhost:4010..."
-        curl -v http://localhost:4010 || echo "Basic connection failed"
-
-        # Verify Prism is running with retry
-        for i in {1..5}; do
-          echo "=== Attempt $i: Testing Prism health ==="
-          if curl -v http://localhost:4010/health 2>&1 | head -10; then
-            echo "✅ Prism container started successfully on port 4010"
+        # Wait for Prism to start with better error handling
+        echo "=== Waiting for Prism to start ==="
+        for i in {1..10}; do
+          echo "Attempt $i: Checking if Prism is ready..."
+          
+          # Check if container is still running
+          if ! docker ps | grep -q prism; then
+            echo "❌ Container stopped unexpectedly"
+            echo "=== Container exit logs ==="
+            docker logs prism
+            docker ps -a --filter name=prism
+            exit 1
+          fi
+          
+          # Try to connect to an actual endpoint from our spec
+          if curl -sf http://localhost:4010/breeders > /dev/null 2>&1; then
+            echo "✅ Prism is ready!"
             break
           else
-            echo "❌ Attempt $i: Prism not ready yet, waiting..."
-            echo "Container still running?"
-            docker ps | grep prism || echo "Container stopped"
-            echo "Recent logs:"
-            docker logs --tail 5 prism
-            sleep 5
+            echo "Prism not ready yet, waiting..."
+            sleep 3
+          fi
+          
+          if [ $i -eq 10 ]; then
+            echo "❌ Prism failed to start after 10 attempts"
+            echo "=== Final container state ==="
+            docker ps -a --filter name=prism
+            echo "=== Final container logs ==="
+            docker logs prism
+            exit 1
           fi
         done
+
+        # Test basic connectivity
+        echo "=== Testing basic connectivity ==="
+        curl -v http://localhost:4010 || echo "Basic connection failed"
+
+        # Verify Prism is responding
+        echo "=== Testing Prism health ==="
+        curl -v http://localhost:4010/health || echo "Health check failed"
 
         # Test available endpoints
         echo "=== Testing available Prism endpoints ==="
@@ -150,6 +189,16 @@ jobs:
         echo "Testing POST /breeders:"
         curl -X POST -H "Content-Type: application/json" -d '{"name":"test"}' \
           http://localhost:4010/breeders 2>&1 | head -10 || echo "POST /breeders failed"
+
+        echo "Testing /credentials (new endpoints):"
+        curl -v http://localhost:4010/credentials 2>&1 | head -10 || echo "/credentials failed"
+
+        echo "Testing POST /credentials:"
+        curl -X POST -H "Content-Type: application/json" \
+          -d '{"name":"test","credential_type":"ssh_private_key","content":"test_key_content"}' \
+          http://localhost:4010/credentials 2>&1 | head -10 || echo "POST /credentials failed"
+
+        echo "=== Prism setup complete ==="
 
     - name: Integration tests against Prism mock
       run: |
@@ -208,6 +257,36 @@ jobs:
         echo "Testing: help commands"
         $BINARY_PATH --help
         $BINARY_PATH breeder --help || true  # May fail but tests argument parsing
+
+        # === Credential Command Tests ===
+        echo ""
+        echo "=== Testing Credential Commands ==="
+
+        # Test credential list
+        echo "Testing: credential list"
+        $BINARY_PATH --hostname=localhost --port=4010 credential list
+
+        # Create test credential YAML file
+        echo 'name: "test_ssh_key"' > test_credential.yml
+        echo 'credential_type: "ssh_private_key"' >> test_credential.yml
+        echo 'description: "Test SSH key for CI"' >> test_credential.yml
+        echo 'content: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA2Z2H7V..."' >> test_credential.yml
+
+        # Test credential create
+        echo "Testing: credential create"
+        $BINARY_PATH --hostname=localhost --port=4010 credential create --file=test_credential.yml
+
+        # Test credential show with mock UUID
+        echo "Testing: credential show (including content)"
+        $BINARY_PATH --hostname=localhost --port=4010 credential show --id=550e8400-e29b-41d4-a716-446655440001
+
+        # Test credential delete
+        echo "Testing: credential delete"
+        $BINARY_PATH --hostname=localhost --port=4010 credential delete --id=550e8400-e29b-41d4-a716-446655440001
+
+        # Test help shows credential commands
+        echo "Testing: help shows credential commands"
+        $BINARY_PATH --help | grep -q "credential" && echo "✅ Credential commands documented in help" || echo "❌ Credential commands missing from help"
 
     - name: Cleanup Prism container
       if: always()

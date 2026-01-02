@@ -63,6 +63,23 @@ proc handleResponse*[T](client: GodonClient; response: Response): ApiResponse[T]
     try:
       echo "Raw response body: ", response.body
       let jsonData = parseJson(response.body)
+      
+      # Handle nested response structures like {"breeders": [...]} or {"credentials": [...]}
+      if jsonData.kind == JObject:
+        # Check for wrapped list responses
+        when T is seq:
+          for key, value in jsonData.pairs:
+            if value.kind == JArray:
+              result = ApiResponse[T](success: true, data: value.to(T), error: "")
+              return
+        # Check for wrapped single object responses
+        else:
+          for key, value in jsonData.pairs:
+            if value.kind == JObject:
+              result = ApiResponse[T](success: true, data: value.to(T), error: "")
+              return
+      
+      # Fallback to direct conversion
       result = ApiResponse[T](success: true, data: jsonData.to(T), error: "")
     except CatchableError as e:
       result = ApiResponse[T](success: false, data: default(T), error: "JSON parse error: " & e.msg)

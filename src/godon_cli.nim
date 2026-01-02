@@ -1,5 +1,5 @@
 import std/[parseopt, strutils, os, json]
-import godon/[client, breeder, types]
+import godon/[client, breeder, credential, types]
 
 proc writeHelp() =
   echo """Godon CLI - Command line interface for Godon API
@@ -13,6 +13,11 @@ Commands:
   breeder show --id <id>             Show breeder details
   breeder update --file <path>           Update a breeder from file
   breeder purge --id <id>            Delete a breeder
+  
+  credential list                        List all credentials
+  credential create --file <path>        Create a credential from file
+  credential show --id <id>          Show credential details (including content)
+  credential delete --id <id>         Delete a credential
 
 Global Options:
   --hostname, -h <host>     Godon hostname (default: localhost)
@@ -26,6 +31,9 @@ Examples:
   godon_cli --hostname api.example.com --port 9090 breeder list
   godon_cli breeder create --file breeder.yaml
   godon_cli breeder show --id 550e8400-e29b-41d4-a716-446655440000
+  godon_cli credential list
+  godon_cli credential create --file credential.yaml
+  godon_cli credential show --id 550e8400-e29b-41d4-a716-446655440001
 """
 
 proc writeError(message: string) =
@@ -196,6 +204,99 @@ proc handleBreederCommand(client: GodonClient, command: string, args: seq[string
   else:
     writeError("Unknown breeder command: " & subCommand)
 
+proc handleCredentialCommand(client: GodonClient, command: string, args: seq[string]) =
+  let subCommand = if args.len > 0: args[0] else: ""
+  
+  case subCommand:
+  of "list":
+    echo "Listing credentials..."
+    let response = client.listCredentials()
+    if response.success:
+      echo "Credentials:"
+      for credential in response.data:
+        echo "  ID: ", credential.id
+        echo "  Name: ", credential.name
+        echo "  Type: ", credential.credentialType
+        echo "  Description: ", credential.description
+        echo "  Windmill Variable: ", credential.windmillVariable
+        echo "  Created: ", credential.createdAt
+        echo "  ---"
+    else:
+      writeError(response.error)
+  
+  of "create":
+    var file = ""
+    for arg in args:
+      if arg.startsWith("--file="):
+        file = arg.split("=")[1]
+        break
+    
+    if file.len == 0:
+      writeError("credential create requires --file <path>")
+    
+    if not fileExists(file):
+      writeError("File not found: " & file)
+    
+    echo "Creating credential from file: ", file
+    let content = readFile(file)
+    let response = client.createCredentialFromYaml(content)
+    if response.success:
+      echo "Credential created successfully:"
+      echo "  ID: ", response.data.id
+      echo "  Name: ", response.data.name
+      echo "  Type: ", response.data.credentialType
+      echo "  Windmill Variable: ", response.data.windmillVariable
+    else:
+      writeError(response.error)
+  
+  of "show":
+    var id = ""
+    for arg in args:
+      if arg.startsWith("--id="):
+        id = arg.split("=")[1]
+        break
+    
+    if id.len == 0:
+      writeError("credential show requires --id <id>")
+    
+    echo "Getting credential details for ID: ", id
+    let response = client.getCredential(id)
+    if response.success:
+      echo "Credential Details:"
+      echo "  ID: ", response.data.id
+      echo "  Name: ", response.data.name
+      echo "  Type: ", response.data.credentialType
+      echo "  Description: ", response.data.description
+      echo "  Windmill Variable: ", response.data.windmillVariable
+      echo "  Created: ", response.data.createdAt
+      echo "  Last Used: ", response.data.lastUsedAt
+      echo "  Content:"
+      echo "    ", response.data.content  # Show actual credential content
+    else:
+      writeError(response.error)
+  
+  of "delete":
+    var id = ""
+    for arg in args:
+      if arg.startsWith("--id="):
+        id = arg.split("=")[1]
+        break
+    
+    if id.len == 0:
+      writeError("credential delete requires --id <id>")
+    
+    echo "Deleting credential with ID: ", id
+    let response = client.deleteCredential(id)
+    if response.success:
+      echo "Credential deleted successfully"
+      if response.data != nil:
+        echo "Response: ", pretty(response.data)
+    else:
+      writeError(response.error)
+  
+  else:
+    writeError("Unknown credential command: " & subCommand)
+
 let (command, hostname, port, apiVersion, insecure, args) = parseArgs()
 
 let godonClient = newGodonClient(hostname, port, apiVersion, insecure)
@@ -205,6 +306,11 @@ of "breeder":
   if args.len == 0:
     writeError("breeder command requires a subcommand (list, create, show, update, purge)")
   handleBreederCommand(godonClient, command, args)
+
+of "credential":
+  if args.len == 0:
+    writeError("credential command requires a subcommand (list, create, show, delete)")
+  handleCredentialCommand(godonClient, command, args)
 
 else:
   writeError("Unknown command: " & command)
