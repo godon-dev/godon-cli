@@ -4,10 +4,11 @@ A Nim-based CLI tool for controlling and managing the Godon optimizer breeders v
 
 ## Features
 
-- List, create, show, update, and delete breeder configurations
-- YAML-based configuration files
-- RESTful API integration
-- Cross-platform support (currently Linux x86_64)
+- **Breeder Management**: List, create, show, update, and delete breeder configurations
+- **Credential Management**: Store and manage SSH keys, API tokens, and other sensitive data
+- **YAML-based Configuration**: Simple YAML files for breeders and credentials
+- **RESTful API Integration**: Communicates with the Godon Control API
+- **Cross-platform Support**: Currently Linux x86_64, extensible to other platforms
 
 ## Installation
 
@@ -116,6 +117,52 @@ godon_cli breeder update --file breeder_update.yaml
 
 ```bash
 godon_cli breeder purge --id 550e8400-e29b-41d4-a716-446655440000
+```
+
+### Credential Management
+
+#### List Credentials
+
+```bash
+godon_cli credential list
+```
+
+#### Create a Credential
+
+Create a YAML configuration file `credential.yaml`:
+
+```yaml
+name: "production_ssh_key"
+credential_type: "ssh_private_key"
+description: "SSH key for production servers"
+content: |
+  -----BEGIN RSA PRIVATE KEY-----
+  MIIEpAIBAAKCAQEA2Z2H7V...
+  -----END RSA PRIVATE KEY-----
+```
+
+Then create the credential:
+
+```bash
+godon_cli credential create --file credential.yaml
+```
+
+**Supported credential types:**
+- `ssh_private_key` - SSH private keys
+- `api_token` - API authentication tokens
+- `database_connection` - Database connection strings
+- `http_basic_auth` - HTTP basic authentication credentials
+
+#### Show Credential Details
+
+```bash
+godon_cli credential show --id 550e8400-e29b-41d4-a716-446655440001
+```
+
+#### Delete a Credential
+
+```bash
+godon_cli credential delete --id 550e8400-e29b-41d4-a716-446655440001
 ```
 
 ## Configuration
