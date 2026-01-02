@@ -4,7 +4,7 @@ import client, types
 
 # Credential API client methods
 
-proc listCredentials*(client: GodonClient): ApiResponseList[Credential] =
+proc listCredentials*(client: GodonClient): ApiResponse[seq[Credential]] =
   ## List all credentials
   let url = client.baseUrl() & "/credentials"
   
@@ -12,31 +12,38 @@ proc listCredentials*(client: GodonClient): ApiResponseList[Credential] =
     let response = client.httpClient.get(url)
     if response.code == Http200:
       let body = parseJson(response.body)
-      let credentials = body["credentials"]
+      var credentials: seq[Credential] = @[]
       
-      var result: seq[Credential] = @[]
-      for cred in credentials.items:
-        result.add(parseCredentialFromJson(cred))
+      # Handle both bare array and wrapped responses
+      let jsonArray = if body.kind == JArray:
+        body
+      elif body.hasKey("credentials"):
+        body["credentials"]
+      else:
+        raise newException(ValueError, "Unexpected response format")
       
-      return ApiResponseList[Credential](
+      for credJson in jsonArray.items:
+        credentials.add(parseCredentialFromJson(credJson))
+      
+      return ApiResponse[seq[Credential]](
         success: true,
-        data: result,
+        data: credentials,
         error: ""
       )
     else:
-      return ApiResponseList[Credential](
+      return ApiResponse[seq[Credential]](
         success: false,
         data: @[],
         error: "Failed to list credentials: " & response.status
       )
   except Exception as e:
-    return ApiResponseList[Credential](
+    return ApiResponse[seq[Credential]](
       success: false,
       data: @[],
       error: "Exception: " & e.msg
     )
 
-proc createCredential*(client: GodonClient, credentialData: JsonNode): ApiResponseSingle[Credential] =
+proc createCredential*(client: GodonClient, credentialData: JsonNode): ApiResponse[Credential] =
   ## Create a new credential
   let url = client.baseUrl() & "/credentials"
   
@@ -45,27 +52,26 @@ proc createCredential*(client: GodonClient, credentialData: JsonNode): ApiRespon
     let response = client.httpClient.post(url, $credentialData)
     if response.code == Http201:
       let body = parseJson(response.body)
-      let credential = parseCredentialFromJson(body["credential"])
-      
-      return ApiResponseSingle[Credential](
+      let credential = parseCredentialFromJson(body)
+      return ApiResponse[Credential](
         success: true,
         data: credential,
         error: ""
       )
     else:
-      return ApiResponseSingle[Credential](
+      return ApiResponse[Credential](
         success: false,
         data: Credential(),
         error: "Failed to create credential: " & response.status
       )
   except Exception as e:
-    return ApiResponseSingle[Credential](
+    return ApiResponse[Credential](
       success: false,
       data: Credential(),
       error: "Exception: " & e.msg
     )
 
-proc getCredential*(client: GodonClient, credentialId: string): ApiResponseSingle[Credential] =
+proc getCredential*(client: GodonClient, credentialId: string): ApiResponse[Credential] =
   ## Get a specific credential by ID (including content)
   let url = client.baseUrl() & "/credentials/" & encodeUrl(credentialId)
   
@@ -73,21 +79,20 @@ proc getCredential*(client: GodonClient, credentialId: string): ApiResponseSingl
     let response = client.httpClient.get(url)
     if response.code == Http200:
       let body = parseJson(response.body)
-      let credential = parseCredentialFromJson(body["credential"])
-      
-      return ApiResponseSingle[Credential](
+      let credential = parseCredentialFromJson(body)
+      return ApiResponse[Credential](
         success: true,
         data: credential,
         error: ""
       )
     else:
-      return ApiResponseSingle[Credential](
+      return ApiResponse[Credential](
         success: false,
         data: Credential(),
         error: "Failed to get credential: " & response.status
       )
   except Exception as e:
-    return ApiResponseSingle[Credential](
+    return ApiResponse[Credential](
       success: false,
       data: Credential(),
       error: "Exception: " & e.msg
@@ -120,7 +125,7 @@ proc deleteCredential*(client: GodonClient, credentialId: string): ApiResponse[J
       error: "Exception: " & e.msg
     )
 
-proc createCredentialFromYaml*(client: GodonClient, yamlContent: string): ApiResponseSingle[Credential] =
+proc createCredentialFromYaml*(client: GodonClient, yamlContent: string): ApiResponse[Credential] =
   ## Create credential from YAML content
   ## This is a convenience method that parses YAML and converts to JSON
   
@@ -133,7 +138,7 @@ proc createCredentialFromYaml*(client: GodonClient, yamlContent: string): ApiRes
     
     # Add required fields
     credentialData.add("name", newJString(yamlData["name"]))
-    credentialData.add("credential_type", newJString(yamlData["credential_type"]))
+    credentialData.add("credentialType", newJString(yamlData["credential_type"]))
     
     # Add optional fields
     if "description" in yamlData:
@@ -145,7 +150,7 @@ proc createCredentialFromYaml*(client: GodonClient, yamlContent: string): ApiRes
     if "content" in yamlData:
       credentialData.add("content", newJString(yamlData["content"]))
     else:
-      return ApiResponseSingle[Credential](
+      return ApiResponse[Credential](
         success: false,
         data: Credential(),
         error: "Missing required field: content"
@@ -153,7 +158,7 @@ proc createCredentialFromYaml*(client: GodonClient, yamlContent: string): ApiRes
     
     return client.createCredential(credentialData)
   except Exception as e:
-    return ApiResponseSingle[Credential](
+    return ApiResponse[Credential](
       success: false,
       data: Credential(),
       error: "Failed to parse YAML: " & e.msg
