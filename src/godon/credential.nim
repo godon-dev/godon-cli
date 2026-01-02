@@ -138,7 +138,7 @@ proc createCredentialFromYaml*(client: GodonClient, yamlContent: string): ApiRes
     
     # Add required fields
     credentialData.add("name", newJString(yamlData["name"]))
-    credentialData.add("credentialType", newJString(yamlData["credential_type"]))
+    credentialData.add("credentialType", newJString(yamlData["credentialType"]))
     
     # Add optional fields
     if "description" in yamlData:

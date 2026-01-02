@@ -195,7 +195,7 @@ jobs:
 
         echo "Testing POST /credentials:"
         curl -X POST -H "Content-Type: application/json" \
-          -d '{"name":"test","credential_type":"ssh_private_key","content":"test_key_content"}' \
+          -d '{"name":"test","credentialType":"ssh_private_key","content":"test_key_content"}' \
           http://localhost:4010/credentials 2>&1 | head -10 || echo "POST /credentials failed"
 
         echo "=== Prism setup complete ==="
@@ -268,7 +268,7 @@ jobs:
 
         # Create test credential YAML file
         echo 'name: "test_ssh_key"' > test_credential.yml
-        echo 'credential_type: "ssh_private_key"' >> test_credential.yml
+        echo 'credentialType: "ssh_private_key"' >> test_credential.yml
         echo 'description: "Test SSH key for CI"' >> test_credential.yml
         echo 'content: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA2Z2H7V..."' >> test_credential.yml
 
