@@ -9,7 +9,7 @@ Usage:
 
 Commands:
   breeder list                           List all configured breeders
-  breeder create --file <path>           Create a breeder from file
+  breeder create --name <name> --file <path>  Create a breeder from file
   breeder show --id <id>             Show breeder details
   breeder update --file <path>           Update a breeder from file
   breeder purge --id <id>            Delete a breeder
@@ -29,7 +29,7 @@ Global Options:
 Examples:
   godon_cli breeder list
   godon_cli --hostname api.example.com --port 9090 breeder list
-  godon_cli breeder create --file breeder.yaml
+  godon_cli breeder create --name my-breeder --file breeder-config.yaml
   godon_cli breeder show --id 550e8400-e29b-41d4-a716-446655440000
   godon_cli credential list
   godon_cli credential create --file credential.yaml
@@ -74,8 +74,11 @@ proc parseArgs(): (string, string, int, string, bool, seq[string]) =
       of "file":
         # Reconstruct as argument for subcommand parsing
         args.add("--file=" & val)
+      of "name":
+        # Reconstruct as argument for subcommand parsing
+        args.add("--name=" & val)
       of "id":
-        # Reconstruct as argument for subcommand parsing  
+        # Reconstruct as argument for subcommand parsing
         args.add("--id=" & val)
       of "insecure":
         insecure = true
@@ -114,20 +117,25 @@ proc handleBreederCommand(client: GodonClient, command: string, args: seq[string
   
   of "create":
     var file = ""
+    var name = ""
     for arg in args:
       if arg.startsWith("--file="):
         file = arg.split("=")[1]
-        break
-    
+      elif arg.startsWith("--name="):
+        name = arg.split("=")[1]
+
     if file.len == 0:
       writeError("breeder create requires --file <path>")
-    
+
+    if name.len == 0:
+      writeError("breeder create requires --name <name>")
+
     if not fileExists(file):
       writeError("File not found: " & file)
-    
-    echo "Creating breeder from file: ", file
+
+    echo "Creating breeder '", name, "' from file: ", file
     let content = readFile(file)
-    let response = client.createBreederFromYaml(content)
+    let response = client.createBreederFromYamlWithName(content, name)
     if response.success:
       echo "Breeder created successfully:"
       echo "  ID: ", response.data.id

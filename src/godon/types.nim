@@ -19,7 +19,7 @@ type
 
   BreederCreateRequest* = object
     name*: string
-    config*: string
+    config*: JsonNode
 
   BreederUpdateRequest* = object
     uuid*: string

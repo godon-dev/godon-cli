@@ -2,7 +2,7 @@
 ## Implementation of breeder-related API endpoints
 
 import std/[httpclient, json, strutils, uri]
-import yaml
+import yaml, yaml/tojson
 import client, types
 
 proc listBreeders*(client: GodonClient): ApiResponse[seq[BreederSummary]] =
@@ -18,10 +18,10 @@ proc createBreeder*(client: GodonClient, request: BreederCreateRequest): ApiResp
   ## Create a new breeder
   try:
     let url = client.baseUrl() & "/breeders"
-    # Convert config string to JsonNode
+    # Config is already a JsonNode, no parsing needed
     var jsonData = %*{
       "name": request.name,
-      "config": parseJson(request.config)
+      "config": request.config
     }
     echo "Sending JSON: ", $jsonData
     client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
@@ -30,17 +30,24 @@ proc createBreeder*(client: GodonClient, request: BreederCreateRequest): ApiResp
   except CatchableError as e:
     result = ApiResponse[BreederSummary](success: false, data: default(BreederSummary), error: e.msg)
 
-proc parseBreederFromYaml*(yamlContent: string): BreederCreateRequest =
-  ## Parse breeder configuration from YAML content using yaml library
+proc createBreederFromYamlWithName*(client: GodonClient, yamlContent: string, name: string): ApiResponse[BreederSummary] =
+  ## Create a breeder from YAML content with explicit name parameter
+  ## YAML contains only the config (no name field), name comes from parameter
   try:
-    result = yaml.loadAs[BreederCreateRequest](yamlContent)
-  except CatchableError as e:
-    raise newException(ValueError, "Failed to parse YAML: " & e.msg)
+    # Parse YAML and convert to JsonNode
+    let jsonNodes = loadToJson(yamlContent)
 
-proc createBreederFromYaml*(client: GodonClient, yamlContent: string): ApiResponse[BreederSummary] =
-  ## Create a breeder from YAML content
-  try:
-    let request = parseBreederFromYaml(yamlContent)
+    # Take the first document (should be only one)
+    if jsonNodes.len == 0:
+      return ApiResponse[BreederSummary](success: false, data: default(BreederSummary), error: "No YAML documents found")
+
+    let configNode = jsonNodes[0]
+
+    # Create BreederCreateRequest with name from parameter and config from YAML
+    let request = BreederCreateRequest(
+      name: name,
+      config: configNode
+    )
     result = client.createBreeder(request)
   except CatchableError as e:
     result = ApiResponse[BreederSummary](success: false, data: default(BreederSummary), error: e.msg)
@@ -58,7 +65,7 @@ proc updateBreeder*(client: GodonClient, request: BreederUpdateRequest): ApiResp
   ## Update an existing breeder
   try:
     let url = client.baseUrl() & "/breeders/" & encodeUrl(request.uuid)
-    # Convert config string to JsonNode
+    # Config is a string (JSON), parse it first
     var jsonData = %*{
       "name": request.name,
       "description": request.description,
@@ -70,17 +77,32 @@ proc updateBreeder*(client: GodonClient, request: BreederUpdateRequest): ApiResp
   except CatchableError as e:
     result = ApiResponse[Breeder](success: false, data: default(Breeder), error: e.msg)
 
-proc parseBreederUpdateFromYaml*(yamlContent: string): BreederUpdateRequest =
-  ## Parse breeder update configuration from YAML content
-  try:
-    result = yaml.loadAs[BreederUpdateRequest](yamlContent)
-  except CatchableError as e:
-    raise newException(ValueError, "Failed to parse YAML: " & e.msg)
-
 proc updateBreederFromYaml*(client: GodonClient, yamlContent: string): ApiResponse[Breeder] =
   ## Update a breeder from YAML content
   try:
-    let request = parseBreederUpdateFromYaml(yamlContent)
+    # Parse YAML and convert to JsonNode
+    let jsonNodes = loadToJson(yamlContent)
+
+    # Take the first document (should be only one)
+    if jsonNodes.len == 0:
+      return ApiResponse[Breeder](success: false, data: default(Breeder), error: "No YAML documents found")
+
+    let yamlData = jsonNodes[0]
+
+    # Extract fields from YAML
+    let uuid = if yamlData.hasKey("uuid"): yamlData["uuid"].getStr() else: ""
+    let name = if yamlData.hasKey("name"): yamlData["name"].getStr() else: ""
+    let description = if yamlData.hasKey("description"): yamlData["description"].getStr() else: ""
+
+    # Config should be a nested object - convert to JSON string
+    let config = if yamlData.hasKey("config"): $yamlData["config"] else: "{}"
+
+    let request = BreederUpdateRequest(
+      uuid: uuid,
+      name: name,
+      description: description,
+      config: config
+    )
     result = client.updateBreeder(request)
   except CatchableError as e:
     result = ApiResponse[Breeder](success: false, data: default(Breeder), error: e.msg)
