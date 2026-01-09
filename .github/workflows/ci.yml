@@ -228,12 +228,19 @@ jobs:
         $BINARY_PATH --help | grep -q "insecure" && echo "✅ --insecure flag documented in help" || echo "❌ --insecure flag missing from help"
 
         # Create test YAML files using echo
-        echo 'name: "Test Breeder"' > test_breeder.yml
-        echo 'config: >' >> test_breeder.yml
-        echo '  {"setting1": "value1", "setting2": 42}' >> test_breeder.yml
+        echo 'meta:' > test_breeder.yml
+        echo '  configVersion: "0.2"' >> test_breeder.yml
+        echo 'breeder:' >> test_breeder.yml
+        echo '  type: "linux_performance"' >> test_breeder.yml
+        echo 'settings:' >> test_breeder.yml
+        echo '  sysctl:' >> test_breeder.yml
+        echo '    vm.swappiness:' >> test_breeder.yml
+        echo '      constraints:' >> test_breeder.yml
+        echo '        lower: 0' >> test_breeder.yml
+        echo '        upper: 100' >> test_breeder.yml
 
         echo "Testing: breeder create"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder create --file=test_breeder.yml
+        $BINARY_PATH --hostname=localhost --port=4010 breeder create --name="test-breeder" --file=test_breeder.yml
 
         # Test breeder show with a mock UUID
         echo "Testing: breeder show"
@@ -243,8 +250,10 @@ jobs:
         echo 'uuid: "550e8400-e29b-41d4-a716-446655440000"' > test_breeder_update.yml
         echo 'name: "Updated Test Breeder"' >> test_breeder_update.yml
         echo 'description: "Updated integration test breeder"' >> test_breeder_update.yml
-        echo 'config: >' >> test_breeder_update.yml
-        echo '  {"setting1": "updated_value1", "setting2": 100, "new_setting": "new_value"}' >> test_breeder_update.yml
+        echo 'config:' >> test_breeder_update.yml
+        echo '  setting1: "updated_value1"' >> test_breeder_update.yml
+        echo '  setting2: 100' >> test_breeder_update.yml
+        echo '  new_setting: "new_value"' >> test_breeder_update.yml
 
         echo "Testing: breeder update"
         $BINARY_PATH --hostname=localhost --port=4010 breeder update --file=test_breeder_update.yml
