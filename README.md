@@ -75,18 +75,29 @@ godon_cli --hostname https://localhost:8443 --insecure breeder list
 
 #### Create a Breeder
 
-Create a YAML configuration file `breeder.yaml`:
+Create a YAML configuration file `breeder_config.yaml` with native YAML syntax:
 
 ```yaml
-name: "genetic-optimizer-1"
-config: >
-  {"setting1": "value1", "setting2": 42, "optimization_target": "performance"}
+meta:
+  configVersion: "0.2"
+  description: "Linux network performance optimization"
+
+breeder:
+  type: "linux_performance"
+
+settings:
+  sysctl:
+    net.ipv4.tcp_rmem:
+      step: 100
+      constraints:
+        lower: 4096
+        upper: 6291456
 ```
 
-Then create the breeder:
+Then create the breeder with a name:
 
 ```bash
-godon_cli breeder create --file breeder.yaml
+godon_cli breeder create --name "genetic-optimizer-1" --file breeder_config.yaml
 ```
 
 #### Show Breeder Details
@@ -97,14 +108,16 @@ godon_cli breeder show --id 550e8400-e29b-41d4-a716-446655440000
 
 #### Update a Breeder
 
-Create an update configuration file `breeder_update.yaml`:
+Create an update configuration file `breeder_update.yaml` with native YAML syntax:
 
 ```yaml
 uuid: "550e8400-e29b-41d4-a716-446655440000"
 name: "updated-genetic-optimizer"
 description: "Updated optimizer configuration"
-config: >
-  {"setting1": "new_value1", "setting2": 100}
+config:
+  setting1: "new_value1"
+  setting2: 100
+  optimization_target: "throughput"
 ```
 
 Then update:
