@@ -227,20 +227,26 @@ jobs:
         echo "Testing: help shows --insecure flag"
         $BINARY_PATH --help | grep -q "insecure" && echo "✅ --insecure flag documented in help" || echo "❌ --insecure flag missing from help"
 
-        # Create test YAML files using echo
-        echo 'meta:' > test_breeder.yml
-        echo '  configVersion: "0.2"' >> test_breeder.yml
-        echo 'breeder:' >> test_breeder.yml
-        echo '  type: "linux_performance"' >> test_breeder.yml
-        echo 'settings:' >> test_breeder.yml
-        echo '  sysctl:' >> test_breeder.yml
-        echo '    vm.swappiness:' >> test_breeder.yml
-        echo '      constraints:' >> test_breeder.yml
-        echo '        lower: 0' >> test_breeder.yml
-        echo '        upper: 100' >> test_breeder.yml
+        # Fetch real config from upstream godon repository to catch JSON truncation bugs
+        curl -s https://raw.githubusercontent.com/godon-dev/godon/refs/heads/master/examples/network.yml -o test_breeder.yml
 
-        echo "Testing: breeder create"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder create --name="test-breeder" --file=test_breeder.yml
+        echo "Testing: breeder create with real upstream config"
+        CREATE_OUTPUT=$($BINARY_PATH --hostname=localhost --port=4010 breeder create --name="test-breeder" --file=test_breeder.yml 2>&1)
+        CREATE_EXIT_CODE=$?
+
+        echo "Create exit code: $CREATE_EXIT_CODE"
+        echo "Create output: $CREATE_OUTPUT"
+
+        # Check for JSON truncation bug
+        if [ $CREATE_EXIT_CODE -ne 0 ]; then
+          echo "❌ Breeder create failed!"
+          if echo "$CREATE_OUTPUT" | grep -q "Invalid JSON"; then
+            echo "🐛 Detected JSON truncation bug - config too large or malformed"
+          fi
+          exit 1
+        else
+          echo "✅ Breeder create succeeded"
+        fi
 
         # Test breeder show with a mock UUID
         echo "Testing: breeder show"

@@ -23,6 +23,13 @@ proc createBreeder*(client: GodonClient, request: BreederCreateRequest): ApiResp
       "name": request.name,
       "config": request.config
     }
+
+    # Debug: Show what we're about to send
+    when defined(debug):
+      echo "DEBUG: Sending JSON to ", url
+      echo "DEBUG: JSON string length: ", ($jsonData).len
+      echo "DEBUG: Full JSON: ", $jsonData
+
     echo "Sending JSON: ", $jsonData
     client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
     let response = client.httpClient.post(url, $jsonData)
@@ -42,6 +49,14 @@ proc createBreederFromYamlWithName*(client: GodonClient, yamlContent: string, na
       return ApiResponse[BreederSummary](success: false, data: default(BreederSummary), error: "No YAML documents found")
 
     let configNode = jsonNodes[0]
+
+    # Debug: Show parsed structure
+    when defined(debug):
+      echo "DEBUG: Parsed YAML to JsonNode"
+      echo "DEBUG: ConfigNode keys: ", configNode.keys
+      echo "DEBUG: ConfigNode kind: ", configNode.kind
+      echo "DEBUG: YAML content length: ", yamlContent.len
+      echo "DEBUG: JsonNode size: ", $$configNode.len
 
     # Create BreederCreateRequest with name from parameter and config from YAML
     let request = BreederCreateRequest(
