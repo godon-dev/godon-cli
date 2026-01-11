@@ -1,4 +1,4 @@
-import std/[httpclient, json, strutils, uri, tables]
+import std/[httpclient, json, uri, tables]
 import yaml
 import client, types
 
