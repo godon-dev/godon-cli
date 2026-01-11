@@ -14,18 +14,20 @@ type
     config*: ApiConfig
     httpClient*: HttpClient
     insecure*: bool
+    debug*: bool
 
-proc newGodonClient*(hostname: string = DefaultHostname, 
-                     port: int = DefaultPort, 
+proc newGodonClient*(hostname: string = DefaultHostname,
+                     port: int = DefaultPort,
                      apiVersion: string = DefaultApiVersion,
-                     insecure: bool = false): GodonClient =
+                     insecure: bool = false,
+                     debug: bool = false): GodonClient =
   ## Create a new Godon API client
   let config = ApiConfig(
     hostname: hostname,
     port: port,
     apiVersion: apiVersion
   )
-  
+
   # Configure HTTP client with SSL verification settings
   var httpClient: HttpClient
   if insecure:
@@ -35,7 +37,7 @@ proc newGodonClient*(hostname: string = DefaultHostname,
   else:
     httpClient = newHttpClient()
   
-  GodonClient(config: config, httpClient: httpClient, insecure: insecure)
+  GodonClient(config: config, httpClient: httpClient, insecure: insecure, debug: debug)
 
 proc baseUrl*(client: GodonClient): string =
   ## Get the base URL for API requests
@@ -61,7 +63,8 @@ proc handleResponse*[T](client: GodonClient; response: Response): ApiResponse[T]
   let statusCode = parseInt(split(response.status, " ")[0])
   if statusCode >= 200 and statusCode < 300:
     try:
-      echo "Raw response body: ", response.body
+      if client.debug:
+        echo "Raw response body: ", response.body
       let jsonData = parseJson(response.body)
       
       # Handle nested response structures like {"breeders": [...]} or {"credentials": [...]}
@@ -90,7 +93,8 @@ proc handleResponse*[T](client: GodonClient; response: Response): ApiResponse[T]
       result = ApiResponse[T](success: false, data: default(T), error: "JSON parse error: " & e.msg)
   else:
     try:
-      echo "HTTP Error Response Body: ", response.body
+      if client.debug:
+        echo "HTTP Error Response Body: ", response.body
       let errorJson = parseJson(response.body)
       let errorMsg = errorJson{"message"}.getStr("HTTP Error: " & $statusCode)
       result = ApiResponse[T](success: false, data: default(T), error: errorMsg)

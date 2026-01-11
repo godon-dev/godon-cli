@@ -297,6 +297,11 @@ jobs:
         echo "Testing: help shows credential commands"
         $BINARY_PATH --help | grep -q "credential" && echo "✅ Credential commands documented in help" || echo "❌ Credential commands missing from help"
 
+        # Test --debug flag
+        echo "Testing: --debug flag works without breaking logic"
+        $BINARY_PATH --hostname=localhost --port=4010 --debug breeder list
+        echo "✅ --debug flag works"
+
     - name: Cleanup Prism container
       if: always()
       run: |

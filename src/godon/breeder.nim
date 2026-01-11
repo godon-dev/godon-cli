@@ -23,7 +23,8 @@ proc createBreeder*(client: GodonClient, request: BreederCreateRequest): ApiResp
       "name": request.name,
       "config": request.config
     }
-    echo "Sending JSON: ", $jsonData
+    if client.debug:
+      echo "Sending JSON: ", $jsonData
     client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
     let response = client.httpClient.post(url, $jsonData)
     result = handleResponse[BreederSummary](client, response)

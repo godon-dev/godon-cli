@@ -48,12 +48,13 @@ proc writeError(message: string) =
   stderr.writeLine("Error: " & message)
   quit(1)
 
-proc parseArgs(): (string, string, int, string, bool, OutputFormat, seq[string]) =
+proc parseArgs(): (string, string, int, string, bool, bool, OutputFormat, seq[string]) =
   var command = ""
   var hostname = "localhost"
   var port = 8080
   var apiVersion = "v0"
   var insecure = false
+  var debug = false
   var outputFormat = OutputFormat.Text
   var args: seq[string] = @[]
 
@@ -91,6 +92,8 @@ proc parseArgs(): (string, string, int, string, bool, OutputFormat, seq[string])
         args.add("--id=" & val)
       of "insecure":
         insecure = true
+      of "debug":
+        debug = true
       of "output", "o":
         if val.len == 0:
           writeError("Output option requires a value (text, json, or yaml)")
@@ -116,7 +119,11 @@ proc parseArgs(): (string, string, int, string, bool, OutputFormat, seq[string])
     writeHelp()
     quit(0)
 
-  (command, hostname, port, apiVersion, insecure, outputFormat, args)
+  # Also check for DEBUG environment variable
+  if existsEnv("DEBUG"):
+    debug = true
+
+  (command, hostname, port, apiVersion, insecure, debug, outputFormat, args)
 
 proc formatOutput*[T](data: T, outputFormat: OutputFormat) =
   ## Format data according to output format preference
@@ -354,9 +361,9 @@ proc handleCredentialCommand(client: GodonClient, command: string, args: seq[str
   else:
     writeError("Unknown credential command: " & subCommand)
 
-let (command, hostname, port, apiVersion, insecure, outputFormat, args) = parseArgs()
+let (command, hostname, port, apiVersion, insecure, debug, outputFormat, args) = parseArgs()
 
-let godonClient = newGodonClient(hostname, port, apiVersion, insecure)
+let godonClient = newGodonClient(hostname, port, apiVersion, insecure, debug)
 
 case command:
 of "breeder":
