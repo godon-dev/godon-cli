@@ -108,11 +108,32 @@ proc updateBreederFromYaml*(client: GodonClient, yamlContent: string): ApiRespon
   except CatchableError as e:
     result = ApiResponse[Breeder](success: false, data: default(Breeder), error: e.msg)
 
-proc deleteBreeder*(client: GodonClient, uuid: string): ApiResponse[JsonNode] =
+proc deleteBreeder*(client: GodonClient, uuid: string, force: bool = false): ApiResponse[JsonNode] =
   ## Delete/purge a breeder by UUID
+  ## Set force=true to cancel workers immediately (default: false for safe deletion)
   try:
-    let url = client.baseUrl() & "/breeders/" & encodeUrl(uuid)
+    var url = client.baseUrl() & "/breeders/" & encodeUrl(uuid)
+    if force:
+      url = url & "?force=true"
     let response = client.httpClient.delete(url)
+    result = handleResponse[JsonNode](client, response)
+  except CatchableError as e:
+    result = ApiResponse[JsonNode](success: false, data: nil, error: e.msg)
+
+proc stopBreeder*(client: GodonClient, uuid: string): ApiResponse[JsonNode] =
+  ## Stop a breeder (graceful shutdown)
+  try:
+    let url = client.baseUrl() & "/breeders/" & encodeUrl(uuid) & "/stop"
+    let response = client.httpClient.post(url)
+    result = handleResponse[JsonNode](client, response)
+  except CatchableError as e:
+    result = ApiResponse[JsonNode](success: false, data: nil, error: e.msg)
+
+proc startBreeder*(client: GodonClient, uuid: string): ApiResponse[JsonNode] =
+  ## Start/resume a stopped breeder
+  try:
+    let url = client.baseUrl() & "/breeders/" & encodeUrl(uuid) & "/start"
+    let response = client.httpClient.post(url)
     result = handleResponse[JsonNode](client, response)
   except CatchableError as e:
     result = ApiResponse[JsonNode](success: false, data: nil, error: e.msg)
