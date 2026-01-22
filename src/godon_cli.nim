@@ -19,8 +19,10 @@ Commands:
   breeder create --name <name> --file <path>  Create a breeder from file
   breeder show --id <id>             Show breeder details
   breeder update --file <path>           Update a breeder from file
-  breeder purge --id <id>            Delete a breeder
-  
+  breeder stop --id <id>            Stop breeder workers (graceful shutdown)
+  breeder start --id <id>           Start/resume a stopped breeder
+  breeder purge [--force] --id <id>     Delete a breeder (use --force to cancel workers immediately)
+
   credential list                        List all credentials
   credential create --file <path>        Create a credential from file
   credential show --id <id>          Show credential details (including content)
@@ -31,6 +33,7 @@ Global Options:
   --port, -p <port>         Godon port (default: 8080)
   --api-version, -v <ver>   API version (default: v0)
   --output, -o <format>     Output format: text, json, or yaml (default: text)
+  --force                   Force immediate deletion (skip graceful shutdown)
   --insecure                Skip SSL certificate verification (HTTPS only)
   --help                    Show this help message
 
@@ -39,6 +42,8 @@ Examples:
   godon_cli --hostname api.example.com --port 9090 breeder list
   godon_cli breeder create --name my-breeder --file breeder-config.yaml
   godon_cli breeder show --id 550e8400-e29b-41d4-a716-446655440000
+  godon_cli breeder stop --id 550e8400-e29b-41d4-a716-446655440000
+  godon_cli breeder purge --force --id 550e8400-e29b-41d4-a716-446655440000
   godon_cli credential list
   godon_cli credential create --file credential.yaml
   godon_cli credential show --id 550e8400-e29b-41d4-a716-446655440001
@@ -48,18 +53,19 @@ proc writeError(message: string) =
   stderr.writeLine("Error: " & message)
   quit(1)
 
-proc parseArgs(): (string, string, int, string, bool, bool, OutputFormat, seq[string]) =
+proc parseArgs(): (string, string, int, string, bool, bool, bool, OutputFormat, seq[string]) =
   var command = ""
   var hostname = "localhost"
   var port = 8080
   var apiVersion = "v0"
   var insecure = false
   var debug = false
+  var force = false
   var outputFormat = OutputFormat.Text
   var args: seq[string] = @[]
 
   var p = initOptParser(commandLineParams())
-  
+
   for kind, key, val in p.getopt():
     case kind
     of cmdArgument:
@@ -67,7 +73,7 @@ proc parseArgs(): (string, string, int, string, bool, bool, OutputFormat, seq[st
         command = key
       else:
         args.add(key)
-    
+
     of cmdLongOption, cmdShortOption:
       case key.normalize()
       of "hostname":
@@ -90,6 +96,8 @@ proc parseArgs(): (string, string, int, string, bool, bool, OutputFormat, seq[st
       of "id":
         # Reconstruct as argument for subcommand parsing
         args.add("--id=" & val)
+      of "force":
+        force = true
       of "insecure":
         insecure = true
       of "debug":
@@ -111,7 +119,7 @@ proc parseArgs(): (string, string, int, string, bool, bool, OutputFormat, seq[st
         quit(0)
       else:
         writeError("Unknown option: " & key)
-    
+
     of cmdEnd:
       discard
 
@@ -123,7 +131,7 @@ proc parseArgs(): (string, string, int, string, bool, bool, OutputFormat, seq[st
   if existsEnv("DEBUG"):
     debug = true
 
-  (command, hostname, port, apiVersion, insecure, debug, outputFormat, args)
+  (command, hostname, port, apiVersion, insecure, debug, force, outputFormat, args)
 
 proc formatOutput*[T](data: T, outputFormat: OutputFormat) =
   ## Format data according to output format preference
@@ -139,7 +147,7 @@ proc formatOutput*[T](data: T, outputFormat: OutputFormat) =
     var dumper = blockOnlyDumper()
     echo dumper.transform(jsonString)
 
-proc handleBreederCommand(client: GodonClient, command: string, args: seq[string], outputFormat: OutputFormat) =
+proc handleBreederCommand(client: GodonClient, command: string, args: seq[string], force: bool, outputFormat: OutputFormat) =
   let subCommand = if args.len > 0: args[0] else: ""
   
   case subCommand:
@@ -246,19 +254,61 @@ proc handleBreederCommand(client: GodonClient, command: string, args: seq[string
       if arg.startsWith("--id="):
         id = arg.split("=")[1]
         break
-    
+
     if id.len == 0:
       writeError("breeder purge requires --id <id>")
 
-    let response = client.deleteBreeder(id)
+    let response = client.deleteBreeder(id, force)
     if response.success:
       if outputFormat == OutputFormat.Text:
-        echo "Breeder deleted successfully: ", id
+        if force:
+          echo "Breeder force deleted (workers cancelled): ", id
+        else:
+          echo "Breeder deleted: ", id
       else:
         formatOutput(response.data, outputFormat)
     else:
       writeError(response.error)
-  
+
+  of "stop":
+    var id = ""
+    for arg in args:
+      if arg.startsWith("--id="):
+        id = arg.split("=")[1]
+        break
+
+    if id.len == 0:
+      writeError("breeder stop requires --id <id>")
+
+    let response = client.stopBreeder(id)
+    if response.success:
+      if outputFormat == OutputFormat.Text:
+        echo "Breeder stop requested (graceful shutdown): ", id
+        echo "Workers will finish current trial before stopping."
+      else:
+        formatOutput(response.data, outputFormat)
+    else:
+      writeError(response.error)
+
+  of "start":
+    var id = ""
+    for arg in args:
+      if arg.startsWith("--id="):
+        id = arg.split("=")[1]
+        break
+
+    if id.len == 0:
+      writeError("breeder start requires --id <id>")
+
+    let response = client.startBreeder(id)
+    if response.success:
+      if outputFormat == OutputFormat.Text:
+        echo "Breeder started/resumed: ", id
+      else:
+        formatOutput(response.data, outputFormat)
+    else:
+      writeError(response.error)
+
   else:
     writeError("Unknown breeder command: " & subCommand)
 
@@ -361,15 +411,15 @@ proc handleCredentialCommand(client: GodonClient, command: string, args: seq[str
   else:
     writeError("Unknown credential command: " & subCommand)
 
-let (command, hostname, port, apiVersion, insecure, debug, outputFormat, args) = parseArgs()
+let (command, hostname, port, apiVersion, insecure, debug, force, outputFormat, args) = parseArgs()
 
 let godonClient = newGodonClient(hostname, port, apiVersion, insecure, debug)
 
 case command:
 of "breeder":
   if args.len == 0:
-    writeError("breeder command requires a subcommand (list, create, show, update, purge)")
-  handleBreederCommand(godonClient, command, args, outputFormat)
+    writeError("breeder command requires a subcommand (list, create, show, update, stop, start, purge)")
+  handleBreederCommand(godonClient, command, args, force, outputFormat)
 
 of "credential":
   if args.len == 0:
