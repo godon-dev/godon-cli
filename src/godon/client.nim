@@ -1,5 +1,5 @@
-## Godon HTTP Client
-## Core HTTP client for Godon API
+### Godon HTTP Client
+### Core HTTP client for Godon API
 
 import std/[httpclient, json, uri, strutils, net]
 import types
