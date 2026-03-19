@@ -276,8 +276,8 @@ jobs:
 
         # Test help shows new commands
         echo "Testing: help shows stop/start commands"
-        $BINARY_PATH --help | grep -q "stop" && echo "✅ stop command documented" || echo "❌ stop command missing"
-        $BINARY_PATH --help | grep -q "start" && echo "✅ start command documented" || echo "❌ start command missing"
+        $BINARY_PATH breeder --help | grep -q "stop" && echo "✅ stop command documented" || echo "❌ stop command missing"
+        $BINARY_PATH breeder --help | grep -q "start" && echo "✅ start command documented" || echo "❌ start command missing"
         echo "Testing: breeder purge --help shows --force flag"
         $BINARY_PATH breeder purge --help | grep -q "force" && echo "✅ --force flag documented in purge" || echo "❌ --force flag missing from purge"
 
