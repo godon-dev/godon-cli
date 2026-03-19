@@ -266,15 +266,13 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
 
             let response = client.update_breeder_from_yaml(&content).await;
             if response.success {
-                if let Some(breeder) = response.data {
-                    if matches!(output, OutputFormat::Text) {
-                        println!("Breeder updated successfully:");
-                        println!("  ID: {}", breeder.id);
-                        println!("  Name: {}", breeder.name);
-                        println!("  Status: {}", breeder.status);
-                    } else {
-                        format_output(&breeder, output);
+                if matches!(output, OutputFormat::Text) {
+                    if let Some(ref data) = response.data {
+                        let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+                        println!("Breeder updated successfully: {}", id);
                     }
+                } else if let Some(data) = response.data {
+                    format_output(&data, output);
                 }
             } else {
                 write_error(response.error.as_deref().unwrap_or("Unknown error"));

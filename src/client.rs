@@ -143,7 +143,7 @@ impl GodonClient {
         }
     }
 
-    pub async fn update_breeder(&self, request: BreederUpdateRequest) -> ApiResponse<Breeder> {
+    pub async fn update_breeder(&self, request: BreederUpdateRequest) -> ApiResponse<serde_json::Value> {
         let url = format!("{}/breeders/{}", self.base_url(), urlencoding::encode(&request.uuid));
         
         let config: serde_json::Value = match serde_json::from_str(&request.config) {
@@ -168,7 +168,7 @@ impl GodonClient {
         }
     }
 
-    pub async fn update_breeder_from_yaml(&self, yaml_content: &str) -> ApiResponse<Breeder> {
+    pub async fn update_breeder_from_yaml(&self, yaml_content: &str) -> ApiResponse<serde_json::Value> {
         let yaml_data: serde_yaml::Value = match serde_yaml::from_str(yaml_content) {
             Ok(d) => d,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
