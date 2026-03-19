@@ -272,13 +272,14 @@ jobs:
 
         # Test breeder purge with force flag
         echo "Testing: breeder purge --force"
-        $BINARY_PATH --hostname=localhost --port=4010 --force breeder purge --id=550e8400-e29b-41d4-a716-446655440000
+        $BINARY_PATH --hostname=localhost --port=4010 breeder purge --force --id=550e8400-e29b-41d4-a716-446655440000
 
         # Test help shows new commands
-        echo "Testing: help shows stop/start/force commands"
+        echo "Testing: help shows stop/start commands"
         $BINARY_PATH --help | grep -q "stop" && echo "✅ stop command documented" || echo "❌ stop command missing"
         $BINARY_PATH --help | grep -q "start" && echo "✅ start command documented" || echo "❌ start command missing"
-        $BINARY_PATH --help | grep -q "force" && echo "✅ force flag documented" || echo "❌ force flag missing"
+        echo "Testing: breeder purge --help shows --force flag"
+        $BINARY_PATH breeder purge --help | grep -q "force" && echo "✅ --force flag documented in purge" || echo "❌ --force flag missing from purge"
 
         # Test help commands
         echo "Testing: help commands"

@@ -1,92 +1,69 @@
 {
-  description = "Godon CLI - Nim-based CLI for Godon API";
+  description = "Godon CLI - Rust-based CLI for Godon API";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        
-        # Build static binary using glibc with proper static libraries
-        godon-cli = { version ? (if builtins.getEnv "GODON_VERSION" == "" then "DEV_BUILD" else builtins.getEnv "GODON_VERSION") }: pkgs.stdenv.mkDerivation {
-          pname = "godon-cli";
-          inherit version;
-          src = ./.;
-          
-          nativeBuildInputs = with pkgs; [
-            cacert
-            nim2
-            nimble
-            git
-            pkg-config
-          ];
-          
-          buildInputs = with pkgs; [
-            openssl
-                      ];
-          
-          env = {
-            SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-            NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-            CURL_CA_BUNDLE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs { inherit system overlays; };
+        rustToolchain = pkgs.pkgsBuildHost.rust-bin.stable.latest.default;
+
+        godon-cli = { version ? (if builtins.getEnv "GODON_VERSION" == "" then
+          "DEV_BUILD"
+        else
+          builtins.getEnv "GODON_VERSION") }:
+          pkgs.stdenv.mkDerivation {
+            pname = "godon-cli";
+            inherit version;
+            src = ./.;
+
+            nativeBuildInputs = with pkgs; [ rustToolchain pkg-config ];
+
+            buildInputs = with pkgs; [ openssl ];
+
+            env = {
+              SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              CURL_CA_BUNDLE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+            };
+
+            buildPhase = ''
+              echo "Building godon-cli version: ${version}"
+              export CARGO_HOME=$PWD/.cargo-home
+              cargo build --release
+            '';
+
+            installPhase = ''
+              mkdir -p $out/bin
+              cp target/release/godon_cli $out/bin/godon_cli
+              chmod +x $out/bin/godon_cli
+            '';
+
+            meta = with pkgs.lib; {
+              description = "CLI for the Godon API";
+              license = licenses.agpl3Only;
+              platforms = platforms.linux;
+            };
           };
-          
-          configurePhase = ''
-            export HOME=$TMPDIR
-          '';
-          
-          buildPhase = ''
-            echo "Building godon-cli version: ${version}"
-            
-            # Refresh package list and install dependencies only
-            nimble refresh --verbose
-            # Install yaml dependency without building our package
-            nimble install -y --depsOnly --verbose
-            
-            # Build the CLI
-            mkdir -p bin
-            nim c --hints:on --path:src -d:release -d:ssl -d:VERSION="${version}" \
-              -o:bin/godon_cli src/godon_cli.nim
-          '';
-          
-          installPhase = ''
-            mkdir -p $out/bin
-            
-            # Install the binary
-            cp bin/godon_cli $out/bin/godon_cli
-            chmod +x $out/bin/godon_cli
-          '';
-          
-          meta = with pkgs.lib; {
-            description = "CLI for the Godon API";
-            license = licenses.agpl3Only;
-            platforms = platforms.linux;
-          };
-        };
-        
+
       in {
         packages.default = godon-cli { };
         packages.godon-cli = godon-cli;
-        
-        # Allow building with custom version
+
         packages.godon-cli-custom = version: godon-cli { inherit version; };
-        
-        # Development shell with Nim and build tools
+
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            nim2
-            nimble
-            git
-          ];
-          
+          buildInputs = with pkgs; [ rustToolchain rust-analyzer cargo-watch ];
+
           shellHook = ''
             echo "Godon CLI development environment"
-            echo "Nim: $(nim --version | head -n1)"
-            echo "Nimble: $(nimble --version | head -n1)"
+            echo "Rust: $(rustc --version)"
           '';
         };
       });
