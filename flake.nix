@@ -28,7 +28,6 @@
             buildInputs = with pkgs; [ openssl ];
 
             env = {
-              CARGO_HOME = "/build/cargo-home";
               SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               CURL_CA_BUNDLE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
@@ -36,7 +35,7 @@
 
             buildPhase = ''
               echo "Building godon-cli version: ${version}"
-              mkdir -p $CARGO_HOME
+              export CARGO_HOME=$PWD/.cargo-home
               cargo build --release
             '';
 
