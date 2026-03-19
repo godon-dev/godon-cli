@@ -1,6 +1,6 @@
 # Godon CLI
 
-A Nim-based CLI tool for controlling and managing the Godon optimizer breeders via the Godon Control API.
+A Rust-based CLI tool for controlling and managing the Godon optimizer breeders via the Godon Control API.
 
 ## Features
 
@@ -146,7 +146,7 @@ Create a YAML configuration file `credential.yaml`:
 
 ```yaml
 name: "production_ssh_key"
-credential_type: "ssh_private_key"
+credentialType: "ssh_private_key"
 description: "SSH key for production servers"
 content: |
   -----BEGIN RSA PRIVATE KEY-----

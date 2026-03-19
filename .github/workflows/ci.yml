@@ -276,8 +276,8 @@ jobs:
 
         # Test help shows new commands
         echo "Testing: help shows stop/start commands"
-        $BINARY_PATH --help | grep -q "stop" && echo "✅ stop command documented" || echo "❌ stop command missing"
-        $BINARY_PATH --help | grep -q "start" && echo "✅ start command documented" || echo "❌ start command missing"
+        $BINARY_PATH breeder --help | grep -q "stop" && echo "✅ stop command documented" || echo "❌ stop command missing"
+        $BINARY_PATH breeder --help | grep -q "start" && echo "✅ start command documented" || echo "❌ start command missing"
         echo "Testing: breeder purge --help shows --force flag"
         $BINARY_PATH breeder purge --help | grep -q "force" && echo "✅ --force flag documented in purge" || echo "❌ --force flag missing from purge"
 
@@ -320,6 +320,54 @@ jobs:
         echo "Testing: --debug flag works without breaking logic"
         $BINARY_PATH --hostname=localhost --port=4010 --debug breeder list
         echo "✅ --debug flag works"
+
+        # === Error Handling Tests ===
+        echo ""
+        echo "=== Testing Error Handling ==="
+
+        # Test missing file
+        echo "Testing: missing file error"
+        if $BINARY_PATH --hostname=localhost --port=4010 breeder create --name=test --file=nonexistent.yml 2>/dev/null; then
+          echo "❌ Should have failed on missing file"
+          exit 1
+        else
+          echo "✅ Failed on missing file as expected"
+        fi
+
+        # Test missing required argument
+        echo "Testing: missing --id argument"
+        if $BINARY_PATH --hostname=localhost --port=4010 breeder show 2>/dev/null; then
+          echo "❌ Should have failed on missing --id"
+          exit 1
+        else
+          echo "✅ Failed on missing --id as expected"
+        fi
+
+        # === Output Format Tests ===
+        echo ""
+        echo "=== Testing Output Formats ==="
+
+        echo "Testing: JSON output format"
+        JSON_OUTPUT=$($BINARY_PATH --hostname=localhost --port=4010 --output=json breeder list)
+        if echo "$JSON_OUTPUT" | grep -q '"id"\|"name"\|"status"'; then
+          echo "✅ JSON output contains expected fields"
+        else
+          echo "❌ JSON output missing expected fields"
+        fi
+
+        echo "Testing: YAML output format"
+        YAML_OUTPUT=$($BINARY_PATH --hostname=localhost --port=4010 --output=yaml breeder list)
+        if echo "$YAML_OUTPUT" | grep -q -e '^-' -e 'id:' -e 'name:'; then
+          echo "✅ YAML output contains expected fields"
+        else
+          echo "❌ YAML output missing expected fields"
+        fi
+
+        echo "Testing: JSON output for breeder show"
+        $BINARY_PATH --hostname=localhost --port=4010 --output=json breeder show --id=550e8400-e29b-41d4-a716-446655440000
+
+        echo "Testing: YAML output for credential list"
+        $BINARY_PATH --hostname=localhost --port=4010 --output=yaml credential list
 
     - name: Cleanup Prism container
       if: always()

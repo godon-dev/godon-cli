@@ -266,13 +266,17 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
 
             let response = client.update_breeder_from_yaml(&content).await;
             if response.success {
-                if matches!(output, OutputFormat::Text) {
-                    if let Some(ref data) = response.data {
-                        let id = data.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-                        println!("Breeder updated successfully: {}", id);
+                if let Some(data) = response.data {
+                    match data.get("id").and_then(|v| v.as_str()) {
+                        Some(id) => {
+                            if matches!(output, OutputFormat::Text) {
+                                println!("Breeder updated successfully: {}", id);
+                            } else {
+                                format_output(&data, output);
+                            }
+                        }
+                        None => write_error("Unexpected response format: missing 'id' field"),
                     }
-                } else if let Some(data) = response.data {
-                    format_output(&data, output);
                 }
             } else {
                 write_error(response.error.as_deref().unwrap_or("Unknown error"));
