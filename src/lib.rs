@@ -15,6 +15,7 @@ pub struct BreederSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Breeder {
+    #[serde(alias = "uuid")]
     pub id: String,
     pub name: String,
     pub status: String,
