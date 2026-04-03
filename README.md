@@ -6,7 +6,8 @@ A Rust-based CLI tool for controlling and managing the Godon optimizer breeders 
 
 - **Breeder Management**: List, create, show, update, and delete breeder configurations
 - **Credential Management**: Store and manage SSH keys, API tokens, and other sensitive data
-- **YAML-based Configuration**: Simple YAML files for breeders and credentials
+- **Target Management**: Define and manage target hosts for optimization runs
+- **YAML-based Configuration**: Simple YAML files for breeders, credentials, and targets
 - **RESTful API Integration**: Communicates with the Godon Control API
 - **Cross-platform Support**: Currently Linux x86_64, extensible to other platforms
 
@@ -176,6 +177,45 @@ godon_cli credential show --id 550e8400-e29b-41d4-a716-446655440001
 
 ```bash
 godon_cli credential delete --id 550e8400-e29b-41d4-a716-446655440001
+```
+
+### Target Management
+
+#### List Targets
+
+```bash
+godon_cli target list
+```
+
+#### Create a Target
+
+Create a YAML configuration file `target.yaml`:
+
+```yaml
+name: "production-web-01"
+targetType: "ssh"
+address: "192.168.1.100"
+username: "deploy"
+description: "Production web server"
+allowsDowntime: false
+```
+
+Then create the target:
+
+```bash
+godon_cli target create --file target.yaml
+```
+
+#### Show Target Details
+
+```bash
+godon_cli target show --id 550e8400-e29b-41d4-a716-446655440022
+```
+
+#### Delete a Target
+
+```bash
+godon_cli target delete --id 550e8400-e29b-41d4-a716-446655440022
 ```
 
 ## Configuration
