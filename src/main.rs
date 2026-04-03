@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use godon_cli::{Breeder, BreederSummary, Credential, GodonClient};
+use godon_cli::{Breeder, BreederSummary, Credential, GodonClient, Target};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -45,6 +45,10 @@ enum Commands {
     Credential {
         #[command(subcommand)]
         subcommand: CredentialCommands,
+    },
+    Target {
+        #[command(subcommand)]
+        subcommand: TargetCommands,
     },
 }
 
@@ -107,6 +111,26 @@ enum CredentialCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum TargetCommands {
+    List,
+
+    Create {
+        #[arg(long)]
+        file: PathBuf,
+    },
+
+    Show {
+        #[arg(long)]
+        id: String,
+    },
+
+    Delete {
+        #[arg(long)]
+        id: String,
+    },
+}
+
 fn write_error(message: &str) -> ! {
     eprintln!("Error: {}", message);
     std::process::exit(1);
@@ -121,6 +145,73 @@ fn format_output<T: serde::Serialize>(data: &T, format: &OutputFormat) {
             println!("{}", serde_yaml::to_string(data).unwrap_or_default());
         }
         OutputFormat::Text => {}
+    }
+}
+
+async fn handle_target_command(client: &GodonClient, cmd: TargetCommands, output: &OutputFormat) {
+    match cmd {
+        TargetCommands::List => {
+            let response = client.list_targets().await;
+            if response.success {
+                if let Some(targets) = response.data {
+                    if matches!(output, OutputFormat::Text) {
+                        format_target_list(&targets);
+                    } else {
+                        format_output(&targets, output);
+                    }
+                }
+            } else {
+                write_error(response.error.as_deref().unwrap_or("Unknown error"));
+            }
+        }
+
+        TargetCommands::Create { file } => {
+            let content = match std::fs::read_to_string(&file) {
+                Ok(c) => c,
+                Err(e) => write_error(&format!("Failed to read file: {}", e)),
+            };
+
+            let response = client.create_target_from_yaml(&content).await;
+            if response.success {
+                if let Some(target) = response.data {
+                    if matches!(output, OutputFormat::Text) {
+                        format_target_created(&target);
+                    } else {
+                        format_output(&target, output);
+                    }
+                }
+            } else {
+                write_error(response.error.as_deref().unwrap_or("Unknown error"));
+            }
+        }
+
+        TargetCommands::Show { id } => {
+            let response = client.get_target(&id).await;
+            if response.success {
+                if let Some(target) = response.data {
+                    if matches!(output, OutputFormat::Text) {
+                        format_target(&target);
+                    } else {
+                        format_output(&target, output);
+                    }
+                }
+            } else {
+                write_error(response.error.as_deref().unwrap_or("Unknown error"));
+            }
+        }
+
+        TargetCommands::Delete { id } => {
+            let response = client.delete_target(&id).await;
+            if response.success {
+                if matches!(output, OutputFormat::Text) {
+                    println!("Target deleted successfully: {}", id);
+                } else if let Some(data) = response.data {
+                    format_output(&data, output);
+                }
+            } else {
+                write_error(response.error.as_deref().unwrap_or("Unknown error"));
+            }
+        }
     }
 }
 
@@ -185,6 +276,42 @@ fn format_credential_created(credential: &Credential) {
     println!("  windmillVariable: {}", credential.windmill_variable);
 }
 
+fn format_target_list(targets: &[Target]) {
+    println!("Targets:");
+    for target in targets {
+        println!("  ID: {}", target.id);
+        println!("  Name: {}", target.name);
+        println!("  Type: {}", target.target_type);
+        println!("  Address: {}", target.address);
+        println!("  Description: {}", target.description.as_deref().unwrap_or(""));
+        println!("  Created: {}", target.created_at.as_deref().unwrap_or(""));
+        println!("  ---");
+    }
+}
+
+fn format_target(target: &Target) {
+    println!("Target Details:");
+    println!("  ID: {}", target.id);
+    println!("  Name: {}", target.name);
+    println!("  Type: {}", target.target_type);
+    println!("  Address: {}", target.address);
+    println!("  Username: {}", target.username.as_deref().unwrap_or(""));
+    println!("  Credential ID: {}", target.credential_id.as_deref().unwrap_or(""));
+    println!("  Credential Name: {}", target.credential_name.as_deref().unwrap_or(""));
+    println!("  Description: {}", target.description.as_deref().unwrap_or(""));
+    println!("  Allows Downtime: {}", target.allows_downtime.map_or("N/A".to_string(), |v| v.to_string()));
+    println!("  Created: {}", target.created_at.as_deref().unwrap_or(""));
+    println!("  Last Used: {}", target.last_used_at.as_deref().unwrap_or(""));
+}
+
+fn format_target_created(target: &Target) {
+    println!("Target created successfully:");
+    println!("  ID: {}", target.id);
+    println!("  Name: {}", target.name);
+    println!("  Type: {}", target.target_type);
+    println!("  Address: {}", target.address);
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -203,6 +330,7 @@ async fn main() {
     match cli.command {
         Commands::Breeder { subcommand } => handle_breeder_command(&client, subcommand, &cli.output).await,
         Commands::Credential { subcommand } => handle_credential_command(&client, subcommand, &cli.output).await,
+        Commands::Target { subcommand } => handle_target_command(&client, subcommand, &cli.output).await,
     }
 }
 
