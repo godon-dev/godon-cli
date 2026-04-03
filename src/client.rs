@@ -1,4 +1,4 @@
-use crate::{ApiConfig, ApiResponse, Breeder, BreederCreateRequest, BreederSummary, BreederUpdateRequest, Credential};
+use crate::{ApiConfig, ApiResponse, Breeder, BreederCreateRequest, BreederSummary, BreederUpdateRequest, Credential, Target};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use std::time::Duration;
@@ -386,5 +386,172 @@ impl GodonClient {
         });
 
         self.create_credential(credential_data).await
+    }
+
+    pub async fn list_targets(&self) -> ApiResponse<Vec<Target>> {
+        let url = format!("{}/targets", self.base_url());
+
+        match self.client.get(&url).send().await {
+            Ok(response) => {
+                let status = response.status();
+
+                if status.is_success() {
+                    match response.text().await {
+                        Ok(body) => {
+                            let json: serde_json::Value = match serde_json::from_str(&body) {
+                                Ok(j) => j,
+                                Err(e) => return ApiResponse::error(format!("JSON parse error: {}", e)),
+                            };
+
+                            let targets: Vec<Target> = if json.is_array() {
+                                match serde_json::from_value(json) {
+                                    Ok(t) => t,
+                                    Err(e) => return ApiResponse::error(format!("Parse error: {}", e)),
+                                }
+                            } else if let Some(arr) = json.get("targets") {
+                                match serde_json::from_value(arr.clone()) {
+                                    Ok(t) => t,
+                                    Err(e) => return ApiResponse::error(format!("Parse error: {}", e)),
+                                }
+                            } else {
+                                return ApiResponse::error("Unexpected response format");
+                            };
+
+                            ApiResponse::success(targets)
+                        }
+                        Err(e) => ApiResponse::error(e.to_string()),
+                    }
+                } else {
+                    ApiResponse::error(format!("HTTP Error: {}", status))
+                }
+            }
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn create_target(&self, target_data: serde_json::Value) -> ApiResponse<Target> {
+        let url = format!("{}/targets", self.base_url());
+
+        match self.client
+            .post(&url)
+            .json(&target_data)
+            .send()
+            .await
+        {
+            Ok(response) => {
+                let status = response.status();
+
+                if status.is_success() {
+                    match response.text().await {
+                        Ok(body) => {
+                            match serde_json::from_str::<Target>(&body) {
+                                Ok(target) => ApiResponse::success(target),
+                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                            }
+                        }
+                        Err(e) => ApiResponse::error(e.to_string()),
+                    }
+                } else {
+                    ApiResponse::error(format!("HTTP Error: {}", status))
+                }
+            }
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn get_target(&self, target_id: &str) -> ApiResponse<Target> {
+        let url = format!("{}/targets/{}", self.base_url(), urlencoding::encode(target_id));
+
+        match self.client.get(&url).send().await {
+            Ok(response) => {
+                let status = response.status();
+
+                if status.is_success() {
+                    match response.text().await {
+                        Ok(body) => {
+                            match serde_json::from_str::<Target>(&body) {
+                                Ok(target) => ApiResponse::success(target),
+                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                            }
+                        }
+                        Err(e) => ApiResponse::error(e.to_string()),
+                    }
+                } else {
+                    ApiResponse::error(format!("HTTP Error: {}", status))
+                }
+            }
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn delete_target(&self, target_id: &str) -> ApiResponse<serde_json::Value> {
+        let url = format!("{}/targets/{}", self.base_url(), urlencoding::encode(target_id));
+
+        match self.client.delete(&url).send().await {
+            Ok(response) => {
+                let status = response.status();
+
+                if status.is_success() {
+                    match response.text().await {
+                        Ok(body) => {
+                            match serde_json::from_str(&body) {
+                                Ok(v) => ApiResponse::success(v),
+                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                            }
+                        }
+                        Err(e) => ApiResponse::error(e.to_string()),
+                    }
+                } else {
+                    ApiResponse::error(format!("HTTP Error: {}", status))
+                }
+            }
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn create_target_from_yaml(&self, yaml_content: &str) -> ApiResponse<Target> {
+        let yaml_data: std::collections::HashMap<String, serde_yaml::Value> = match serde_yaml::from_str(yaml_content) {
+            Ok(d) => d,
+            Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
+        };
+
+        let name = match yaml_data.get("name").and_then(|v| v.as_str()) {
+            Some(n) => n.to_string(),
+            None => return ApiResponse::error("Missing required field: name"),
+        };
+
+        let target_type = match yaml_data.get("targetType").and_then(|v| v.as_str()) {
+            Some(t) => t.to_string(),
+            None => return ApiResponse::error("Missing required field: targetType"),
+        };
+
+        let address = match yaml_data.get("address").and_then(|v| v.as_str()) {
+            Some(a) => a.to_string(),
+            None => return ApiResponse::error("Missing required field: address"),
+        };
+
+        let mut target_data = serde_json::json!({
+            "name": name,
+            "targetType": target_type,
+            "address": address
+        });
+
+        if let Some(v) = yaml_data.get("username").and_then(|v| v.as_str()) {
+            target_data["username"] = serde_json::Value::String(v.to_string());
+        }
+        if let Some(v) = yaml_data.get("credentialId").and_then(|v| v.as_str()) {
+            target_data["credentialId"] = serde_json::Value::String(v.to_string());
+        }
+        if let Some(v) = yaml_data.get("credentialName").and_then(|v| v.as_str()) {
+            target_data["credentialName"] = serde_json::Value::String(v.to_string());
+        }
+        if let Some(v) = yaml_data.get("description").and_then(|v| v.as_str()) {
+            target_data["description"] = serde_json::Value::String(v.to_string());
+        }
+        if let Some(v) = yaml_data.get("allowsDowntime").and_then(|v| v.as_bool()) {
+            target_data["allowsDowntime"] = serde_json::Value::Bool(v);
+        }
+
+        self.create_target(target_data).await
     }
 }
