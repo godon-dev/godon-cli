@@ -198,6 +198,14 @@ jobs:
           -d '{"name":"test","credentialType":"ssh_private_key","content":"test_key_content"}' \
           http://localhost:4010/credentials 2>&1 | head -10 || echo "POST /credentials failed"
 
+        echo "Testing /targets:"
+        curl -v http://localhost:4010/targets 2>&1 | head -10 || echo "/targets failed"
+
+        echo "Testing POST /targets:"
+        curl -X POST -H "Content-Type: application/json" \
+          -d '{"name":"test","targetType":"ssh","address":"10.0.0.1"}' \
+          http://localhost:4010/targets 2>&1 | head -10 || echo "POST /targets failed"
+
         echo "=== Prism setup complete ==="
 
     - name: Integration tests against Prism mock
@@ -320,6 +328,43 @@ jobs:
         echo "Testing: --debug flag works without breaking logic"
         $BINARY_PATH --hostname=localhost --port=4010 --debug breeder list
         echo "✅ --debug flag works"
+
+        # === Target Command Tests ===
+        echo ""
+        echo "=== Testing Target Commands ==="
+
+        # Test target list
+        echo "Testing: target list"
+        $BINARY_PATH --hostname=localhost --port=4010 target list
+
+        # Create test target YAML file
+        echo 'name: "test-web-server"' > test_target.yml
+        echo 'targetType: "ssh"' >> test_target.yml
+        echo 'address: "192.168.1.100"' >> test_target.yml
+        echo 'username: "deploy"' >> test_target.yml
+        echo 'description: "Test web server"' >> test_target.yml
+
+        # Test target create
+        echo "Testing: target create"
+        $BINARY_PATH --hostname=localhost --port=4010 target create --file=test_target.yml
+
+        # Test target show with mock UUID
+        echo "Testing: target show"
+        $BINARY_PATH --hostname=localhost --port=4010 target show --id=550e8400-e29b-41d4-a716-446655440022
+
+        # Test target delete
+        echo "Testing: target delete"
+        $BINARY_PATH --hostname=localhost --port=4010 target delete --id=550e8400-e29b-41d4-a716-446655440022
+
+        # Test help shows target commands
+        echo "Testing: help shows target commands"
+        $BINARY_PATH --help | grep -q "target" && echo "✅ Target commands documented in help" || echo "❌ Target commands missing from help"
+
+        echo "Testing: JSON output for target list"
+        $BINARY_PATH --hostname=localhost --port=4010 --output=json target list
+
+        echo "Testing: YAML output for target list"
+        $BINARY_PATH --hostname=localhost --port=4010 --output=yaml target list
 
         # === Error Handling Tests ===
         echo ""
