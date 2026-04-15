@@ -59,15 +59,9 @@ pub struct Target {
     pub name: String,
     #[serde(rename = "targetType")]
     pub target_type: String,
-    pub address: String,
-    pub username: Option<String>,
-    #[serde(rename = "credentialId")]
-    pub credential_id: Option<String>,
-    #[serde(rename = "credentialName")]
-    pub credential_name: Option<String>,
-    pub description: Option<String>,
-    #[serde(rename = "allowsDowntime")]
-    pub allows_downtime: Option<bool>,
+    pub spec: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
     #[serde(rename = "createdAt")]
     pub created_at: Option<String>,
     #[serde(rename = "lastUsedAt")]

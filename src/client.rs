@@ -525,31 +525,19 @@ impl GodonClient {
             None => return ApiResponse::error("Missing required field: targetType"),
         };
 
-        let address = match yaml_data.get("address").and_then(|v| v.as_str()) {
-            Some(a) => a.to_string(),
-            None => return ApiResponse::error("Missing required field: address"),
+        let spec = match yaml_data.get("spec") {
+            Some(s) => serde_json::to_value(s).unwrap_or_else(|_| serde_json::json!({})),
+            None => return ApiResponse::error("Missing required field: spec"),
         };
 
         let mut target_data = serde_json::json!({
             "name": name,
             "targetType": target_type,
-            "address": address
+            "spec": spec
         });
 
-        if let Some(v) = yaml_data.get("username").and_then(|v| v.as_str()) {
-            target_data["username"] = serde_json::Value::String(v.to_string());
-        }
-        if let Some(v) = yaml_data.get("credentialId").and_then(|v| v.as_str()) {
-            target_data["credentialId"] = serde_json::Value::String(v.to_string());
-        }
-        if let Some(v) = yaml_data.get("credentialName").and_then(|v| v.as_str()) {
-            target_data["credentialName"] = serde_json::Value::String(v.to_string());
-        }
-        if let Some(v) = yaml_data.get("description").and_then(|v| v.as_str()) {
-            target_data["description"] = serde_json::Value::String(v.to_string());
-        }
-        if let Some(v) = yaml_data.get("allowsDowntime").and_then(|v| v.as_bool()) {
-            target_data["allowsDowntime"] = serde_json::Value::Bool(v);
+        if let Some(m) = yaml_data.get("metadata") {
+            target_data["metadata"] = serde_json::to_value(m).unwrap_or_else(|_| serde_json::json!({}));
         }
 
         self.create_target(target_data).await

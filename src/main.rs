@@ -279,11 +279,16 @@ fn format_credential_created(credential: &Credential) {
 fn format_target_list(targets: &[Target]) {
     println!("Targets:");
     for target in targets {
+        let spec_summary = target
+            .spec
+            .get("address")
+            .or_else(|| target.spec.get("url"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("-");
         println!("  ID: {}", target.id);
         println!("  Name: {}", target.name);
         println!("  Type: {}", target.target_type);
-        println!("  Address: {}", target.address);
-        println!("  Description: {}", target.description.as_deref().unwrap_or(""));
+        println!("  Spec: {}", spec_summary);
         println!("  Created: {}", target.created_at.as_deref().unwrap_or(""));
         println!("  ---");
     }
@@ -294,12 +299,10 @@ fn format_target(target: &Target) {
     println!("  ID: {}", target.id);
     println!("  Name: {}", target.name);
     println!("  Type: {}", target.target_type);
-    println!("  Address: {}", target.address);
-    println!("  Username: {}", target.username.as_deref().unwrap_or(""));
-    println!("  Credential ID: {}", target.credential_id.as_deref().unwrap_or(""));
-    println!("  Credential Name: {}", target.credential_name.as_deref().unwrap_or(""));
-    println!("  Description: {}", target.description.as_deref().unwrap_or(""));
-    println!("  Allows Downtime: {}", target.allows_downtime.map_or("N/A".to_string(), |v| v.to_string()));
+    println!("  Spec: {}", serde_json::to_string_pretty(&target.spec).unwrap_or_default());
+    if let Some(ref metadata) = target.metadata {
+        println!("  Metadata: {}", serde_json::to_string_pretty(metadata).unwrap_or_default());
+    }
     println!("  Created: {}", target.created_at.as_deref().unwrap_or(""));
     println!("  Last Used: {}", target.last_used_at.as_deref().unwrap_or(""));
 }
@@ -309,7 +312,7 @@ fn format_target_created(target: &Target) {
     println!("  ID: {}", target.id);
     println!("  Name: {}", target.name);
     println!("  Type: {}", target.target_type);
-    println!("  Address: {}", target.address);
+    println!("  Spec: {}", serde_json::to_string_pretty(&target.spec).unwrap_or_default());
 }
 
 #[tokio::main]
