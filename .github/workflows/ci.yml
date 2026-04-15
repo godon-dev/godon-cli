@@ -340,9 +340,11 @@ jobs:
         # Create test target YAML file
         echo 'name: "test-web-server"' > test_target.yml
         echo 'targetType: "ssh"' >> test_target.yml
-        echo 'address: "192.168.1.100"' >> test_target.yml
-        echo 'username: "deploy"' >> test_target.yml
-        echo 'description: "Test web server"' >> test_target.yml
+        echo 'spec:' >> test_target.yml
+        echo '  address: "192.168.1.100"' >> test_target.yml
+        echo '  username: "deploy"' >> test_target.yml
+        echo 'metadata:' >> test_target.yml
+        echo '  description: "Test web server"' >> test_target.yml
 
         # Test target create
         echo "Testing: target create"
