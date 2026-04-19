@@ -143,23 +143,12 @@ impl GodonClient {
         }
     }
 
-    pub async fn update_breeder(&self, request: BreederUpdateRequest) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/breeders/{}", self.base_url(), urlencoding::encode(&request.uuid));
-        
-        let config: serde_json::Value = match serde_json::from_str(&request.config) {
-            Ok(c) => c,
-            Err(e) => return ApiResponse::error(format!("Config JSON parse error: {}", e)),
-        };
-
-        let body = serde_json::json!({
-            "name": request.name,
-            "description": request.description,
-            "config": config
-        });
+    pub async fn update_breeder(&self, uuid: &str, request: BreederUpdateRequest) -> ApiResponse<serde_json::Value> {
+        let url = format!("{}/breeders/{}", self.base_url(), urlencoding::encode(uuid));
 
         match self.client
             .put(&url)
-            .json(&body)
+            .json(&request)
             .send()
             .await
         {
@@ -168,39 +157,18 @@ impl GodonClient {
         }
     }
 
-    pub async fn update_breeder_from_yaml(&self, yaml_content: &str) -> ApiResponse<serde_json::Value> {
-        let yaml_data: serde_yaml::Value = match serde_yaml::from_str(yaml_content) {
-            Ok(d) => d,
+    pub async fn update_breeder_from_yaml(&self, uuid: &str, yaml_content: &str, force: bool) -> ApiResponse<serde_json::Value> {
+        let config: serde_json::Value = match serde_yaml::from_str(yaml_content) {
+            Ok(c) => c,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
         };
 
-        let uuid = yaml_data.get("uuid")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let name = yaml_data.get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let description = yaml_data.get("description")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-
-        let config = yaml_data.get("config")
-            .map(|c| serde_json::to_string(c).unwrap_or_else(|_| "{}".to_string()))
-            .unwrap_or_else(|| "{}".to_string());
-
         let request = BreederUpdateRequest {
-            uuid,
-            name,
-            description,
             config,
+            force: if force { Some(true) } else { None },
         };
 
-        self.update_breeder(request).await
+        self.update_breeder(uuid, request).await
     }
 
     pub async fn delete_breeder(&self, uuid: &str, force: bool) -> ApiResponse<serde_json::Value> {

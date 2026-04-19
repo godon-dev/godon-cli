@@ -31,10 +31,9 @@ pub struct BreederCreateRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BreederUpdateRequest {
-    pub uuid: String,
-    pub name: String,
-    pub description: String,
-    pub config: String,
+    pub config: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

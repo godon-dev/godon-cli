@@ -70,7 +70,11 @@ enum BreederCommands {
 
     Update {
         #[arg(long)]
+        id: String,
+        #[arg(long)]
         file: PathBuf,
+        #[arg(long, default_value_t = false)]
+        force: bool,
     },
 
     Stop {
@@ -389,24 +393,25 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
             }
         }
 
-        BreederCommands::Update { file } => {
+        BreederCommands::Update { id, file, force } => {
             let content = match std::fs::read_to_string(&file) {
                 Ok(c) => c,
                 Err(e) => write_error(&format!("Failed to read file: {}", e)),
             };
 
-            let response = client.update_breeder_from_yaml(&content).await;
+            let response = client.update_breeder_from_yaml(&id, &content, force).await;
             if response.success {
                 if let Some(data) = response.data {
-                    match data.get("id").and_then(|v| v.as_str()) {
-                        Some(id) => {
-                            if matches!(output, OutputFormat::Text) {
-                                println!("Breeder updated successfully: {}", id);
-                            } else {
-                                format_output(&data, output);
-                            }
-                        }
-                        None => write_error("Unexpected response format: missing 'id' field"),
+                    if matches!(output, OutputFormat::Text) {
+                        let breeder_id = data.get("breeder_id").and_then(|v| v.as_str()).unwrap_or(&id);
+                        let trials_cleared = data.get("trials_cleared").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let history = data.get("config_history_entries").and_then(|v| v.as_u64()).unwrap_or(0);
+                        println!("Breeder updated successfully:");
+                        println!("  ID: {}", breeder_id);
+                        println!("  Trials cleared: {}", trials_cleared);
+                        println!("  Config history entries: {}", history);
+                    } else {
+                        format_output(&data, output);
                     }
                 }
             } else {
