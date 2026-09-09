@@ -1,4 +1,4 @@
-use crate::{ApiConfig, ApiResponse, Breeder, BreederCreateRequest, BreederSummary, BreederUpdateRequest, Credential, Target};
+use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use std::time::Duration;
@@ -93,8 +93,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn list_breeders(&self) -> ApiResponse<Vec<BreederSummary>> {
-        let url = format!("{}/breeders", self.base_url());
+    pub async fn list_systemtenders(&self) -> ApiResponse<Vec<SystemtenderSummary>> {
+        let url = format!("{}/systemtenders", self.base_url());
         
         match self.client.get(&url).send().await {
             Ok(response) => self.handle_response(response).await,
@@ -102,8 +102,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn create_breeder(&self, request: BreederCreateRequest) -> ApiResponse<BreederSummary> {
-        let url = format!("{}/breeders", self.base_url());
+    pub async fn create_systemtender(&self, request: SystemtenderCreateRequest) -> ApiResponse<SystemtenderSummary> {
+        let url = format!("{}/systemtenders", self.base_url());
         
         if self.debug {
             eprintln!("Sending JSON: {}", serde_json::to_string_pretty(&request).unwrap_or_default());
@@ -120,22 +120,22 @@ impl GodonClient {
         }
     }
 
-    pub async fn create_breeder_from_yaml(&self, yaml_content: &str, name: &str) -> ApiResponse<BreederSummary> {
+    pub async fn create_systemtender_from_yaml(&self, yaml_content: &str, name: &str) -> ApiResponse<SystemtenderSummary> {
         let config: serde_json::Value = match serde_yaml::from_str(yaml_content) {
             Ok(c) => c,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
         };
 
-        let request = BreederCreateRequest {
+        let request = SystemtenderCreateRequest {
             name: name.to_string(),
             config,
         };
 
-        self.create_breeder(request).await
+        self.create_systemtender(request).await
     }
 
-    pub async fn get_breeder(&self, uuid: &str) -> ApiResponse<Breeder> {
-        let url = format!("{}/breeders/{}", self.base_url(), urlencoding::encode(uuid));
+    pub async fn get_systemtender(&self, uuid: &str) -> ApiResponse<Systemtender> {
+        let url = format!("{}/systemtenders/{}", self.base_url(), urlencoding::encode(uuid));
         
         match self.client.get(&url).send().await {
             Ok(response) => self.handle_response(response).await,
@@ -143,8 +143,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn update_breeder(&self, uuid: &str, request: BreederUpdateRequest) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/breeders/{}", self.base_url(), urlencoding::encode(uuid));
+    pub async fn update_systemtender(&self, uuid: &str, request: SystemtenderUpdateRequest) -> ApiResponse<serde_json::Value> {
+        let url = format!("{}/systemtenders/{}", self.base_url(), urlencoding::encode(uuid));
 
         match self.client
             .put(&url)
@@ -157,22 +157,22 @@ impl GodonClient {
         }
     }
 
-    pub async fn update_breeder_from_yaml(&self, uuid: &str, yaml_content: &str, force: bool) -> ApiResponse<serde_json::Value> {
+    pub async fn update_systemtender_from_yaml(&self, uuid: &str, yaml_content: &str, force: bool) -> ApiResponse<serde_json::Value> {
         let config: serde_json::Value = match serde_yaml::from_str(yaml_content) {
             Ok(c) => c,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
         };
 
-        let request = BreederUpdateRequest {
+        let request = SystemtenderUpdateRequest {
             config,
             force: if force { Some(true) } else { None },
         };
 
-        self.update_breeder(uuid, request).await
+        self.update_systemtender(uuid, request).await
     }
 
-    pub async fn delete_breeder(&self, uuid: &str, force: bool) -> ApiResponse<serde_json::Value> {
-        let mut url = format!("{}/breeders/{}", self.base_url(), urlencoding::encode(uuid));
+    pub async fn delete_systemtender(&self, uuid: &str, force: bool) -> ApiResponse<serde_json::Value> {
+        let mut url = format!("{}/systemtenders/{}", self.base_url(), urlencoding::encode(uuid));
         
         if force {
             url.push_str("?force=true");
@@ -184,8 +184,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn stop_breeder(&self, uuid: &str) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/breeders/{}/stop", self.base_url(), urlencoding::encode(uuid));
+    pub async fn stop_systemtender(&self, uuid: &str) -> ApiResponse<serde_json::Value> {
+        let url = format!("{}/systemtenders/{}/stop", self.base_url(), urlencoding::encode(uuid));
         
         match self.client.post(&url).send().await {
             Ok(response) => self.handle_response(response).await,
@@ -193,8 +193,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn start_breeder(&self, uuid: &str) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/breeders/{}/start", self.base_url(), urlencoding::encode(uuid));
+    pub async fn start_systemtender(&self, uuid: &str) -> ApiResponse<serde_json::Value> {
+        let url = format!("{}/systemtenders/{}/start", self.base_url(), urlencoding::encode(uuid));
         
         match self.client.post(&url).send().await {
             Ok(response) => self.handle_response(response).await,
