@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use godon_cli::{Breeder, BreederSummary, Credential, GodonClient, Target};
+use godon_cli::{Systemtender, SystemtenderSummary, Credential, GodonClient, Target};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -38,9 +38,9 @@ enum OutputFormat {
 
 #[derive(Subcommand)]
 enum Commands {
-    Breeder {
+    Systemtender {
         #[command(subcommand)]
-        subcommand: BreederCommands,
+        subcommand: SystemtenderCommands,
     },
     Credential {
         #[command(subcommand)]
@@ -53,7 +53,7 @@ enum Commands {
 }
 
 #[derive(Subcommand)]
-enum BreederCommands {
+enum SystemtenderCommands {
     List,
 
     Create {
@@ -219,31 +219,31 @@ async fn handle_target_command(client: &GodonClient, cmd: TargetCommands, output
     }
 }
 
-fn format_breeder_list(breeders: &[BreederSummary]) {
-    println!("Breeders:");
-    for breeder in breeders {
-        println!("  ID: {}", breeder.id);
-        println!("  Name: {}", breeder.name);
-        println!("  Status: {}", breeder.status);
-        println!("  Created: {}", breeder.created_at);
+fn format_systemtender_list(systemtenders: &[SystemtenderSummary]) {
+    println!("Systemtenders:");
+    for systemtender in systemtenders {
+        println!("  ID: {}", systemtender.id);
+        println!("  Name: {}", systemtender.name);
+        println!("  Status: {}", systemtender.status);
+        println!("  Created: {}", systemtender.created_at);
         println!("  ---");
     }
 }
 
-fn format_breeder(breeder: &Breeder) {
-    println!("Breeder Details:");
-    println!("  ID: {}", breeder.id);
-    println!("  Name: {}", breeder.name);
-    println!("  Status: {}", breeder.status);
-    println!("  Config: {}", serde_json::to_string_pretty(&breeder.config).unwrap_or_default());
-    println!("  Created: {}", breeder.created_at);
+fn format_systemtender(systemtender: &Systemtender) {
+    println!("Systemtender Details:");
+    println!("  ID: {}", systemtender.id);
+    println!("  Name: {}", systemtender.name);
+    println!("  Status: {}", systemtender.status);
+    println!("  Config: {}", serde_json::to_string_pretty(&systemtender.config).unwrap_or_default());
+    println!("  Created: {}", systemtender.created_at);
 }
 
-fn format_breeder_summary(breeder: &BreederSummary) {
-    println!("Breeder created successfully:");
-    println!("  ID: {}", breeder.id);
-    println!("  Name: {}", breeder.name);
-    println!("  Status: {}", breeder.status);
+fn format_systemtender_summary(systemtender: &SystemtenderSummary) {
+    println!("Systemtender created successfully:");
+    println!("  ID: {}", systemtender.id);
+    println!("  Name: {}", systemtender.name);
+    println!("  Status: {}", systemtender.status);
 }
 
 fn format_credential_list(credentials: &[Credential]) {
@@ -335,22 +335,22 @@ async fn main() {
     };
 
     match cli.command {
-        Commands::Breeder { subcommand } => handle_breeder_command(&client, subcommand, &cli.output).await,
+        Commands::Systemtender { subcommand } => handle_systemtender_command(&client, subcommand, &cli.output).await,
         Commands::Credential { subcommand } => handle_credential_command(&client, subcommand, &cli.output).await,
         Commands::Target { subcommand } => handle_target_command(&client, subcommand, &cli.output).await,
     }
 }
 
-async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, output: &OutputFormat) {
+async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderCommands, output: &OutputFormat) {
     match cmd {
-        BreederCommands::List => {
-            let response = client.list_breeders().await;
+        SystemtenderCommands::List => {
+            let response = client.list_systemtenders().await;
             if response.success {
-                if let Some(breeders) = response.data {
+                if let Some(systemtenders) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_breeder_list(&breeders);
+                        format_systemtender_list(&systemtenders);
                     } else {
-                        format_output(&breeders, output);
+                        format_output(&systemtenders, output);
                     }
                 }
             } else {
@@ -358,19 +358,19 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
             }
         }
 
-        BreederCommands::Create { name, file } => {
+        SystemtenderCommands::Create { name, file } => {
             let content = match std::fs::read_to_string(&file) {
                 Ok(c) => c,
                 Err(e) => write_error(&format!("Failed to read file: {}", e)),
             };
 
-            let response = client.create_breeder_from_yaml(&content, &name).await;
+            let response = client.create_systemtender_from_yaml(&content, &name).await;
             if response.success {
-                if let Some(breeder) = response.data {
+                if let Some(systemtender) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_breeder_summary(&breeder);
+                        format_systemtender_summary(&systemtender);
                     } else {
-                        format_output(&breeder, output);
+                        format_output(&systemtender, output);
                     }
                 }
             } else {
@@ -378,14 +378,14 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
             }
         }
 
-        BreederCommands::Show { id } => {
-            let response = client.get_breeder(&id).await;
+        SystemtenderCommands::Show { id } => {
+            let response = client.get_systemtender(&id).await;
             if response.success {
-                if let Some(breeder) = response.data {
+                if let Some(systemtender) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_breeder(&breeder);
+                        format_systemtender(&systemtender);
                     } else {
-                        format_output(&breeder, output);
+                        format_output(&systemtender, output);
                     }
                 }
             } else {
@@ -393,21 +393,21 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
             }
         }
 
-        BreederCommands::Update { id, file, force } => {
+        SystemtenderCommands::Update { id, file, force } => {
             let content = match std::fs::read_to_string(&file) {
                 Ok(c) => c,
                 Err(e) => write_error(&format!("Failed to read file: {}", e)),
             };
 
-            let response = client.update_breeder_from_yaml(&id, &content, force).await;
+            let response = client.update_systemtender_from_yaml(&id, &content, force).await;
             if response.success {
                 if let Some(data) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        let breeder_id = data.get("breeder_id").and_then(|v| v.as_str()).unwrap_or(&id);
+                        let systemtender_id = data.get("systemtender_id").and_then(|v| v.as_str()).unwrap_or(&id);
                         let trials_cleared = data.get("trials_cleared").and_then(|v| v.as_bool()).unwrap_or(false);
                         let history = data.get("config_history_entries").and_then(|v| v.as_u64()).unwrap_or(0);
-                        println!("Breeder updated successfully:");
-                        println!("  ID: {}", breeder_id);
+                        println!("Systemtender updated successfully:");
+                        println!("  ID: {}", systemtender_id);
                         println!("  Trials cleared: {}", trials_cleared);
                         println!("  Config history entries: {}", history);
                     } else {
@@ -419,11 +419,11 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
             }
         }
 
-        BreederCommands::Stop { id } => {
-            let response = client.stop_breeder(&id).await;
+        SystemtenderCommands::Stop { id } => {
+            let response = client.stop_systemtender(&id).await;
             if response.success {
                 if matches!(output, OutputFormat::Text) {
-                    println!("Breeder stop requested (graceful shutdown): {}", id);
+                    println!("Systemtender stop requested (graceful shutdown): {}", id);
                     println!("Workers will finish current trial before stopping.");
                 } else if let Some(data) = response.data {
                     format_output(&data, output);
@@ -433,11 +433,11 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
             }
         }
 
-        BreederCommands::Start { id } => {
-            let response = client.start_breeder(&id).await;
+        SystemtenderCommands::Start { id } => {
+            let response = client.start_systemtender(&id).await;
             if response.success {
                 if matches!(output, OutputFormat::Text) {
-                    println!("Breeder started/resumed: {}", id);
+                    println!("Systemtender started/resumed: {}", id);
                 } else if let Some(data) = response.data {
                     format_output(&data, output);
                 }
@@ -446,14 +446,14 @@ async fn handle_breeder_command(client: &GodonClient, cmd: BreederCommands, outp
             }
         }
 
-        BreederCommands::Purge { id, force } => {
-            let response = client.delete_breeder(&id, force).await;
+        SystemtenderCommands::Purge { id, force } => {
+            let response = client.delete_systemtender(&id, force).await;
             if response.success {
                 if matches!(output, OutputFormat::Text) {
                     if force {
-                        println!("Breeder force deleted (workers cancelled): {}", id);
+                        println!("Systemtender force deleted (workers cancelled): {}", id);
                     } else {
-                        println!("Breeder deleted: {}", id);
+                        println!("Systemtender deleted: {}", id);
                     }
                 } else if let Some(data) = response.data {
                     format_output(&data, output);

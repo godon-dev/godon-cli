@@ -5,7 +5,7 @@ pub use client::GodonClient;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BreederSummary {
+pub struct SystemtenderSummary {
     pub id: String,
     pub name: String,
     pub status: String,
@@ -14,7 +14,7 @@ pub struct BreederSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Breeder {
+pub struct Systemtender {
     pub id: String,
     pub name: String,
     pub status: String,
@@ -24,13 +24,13 @@ pub struct Breeder {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BreederCreateRequest {
+pub struct SystemtenderCreateRequest {
     pub name: String,
     pub config: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BreederUpdateRequest {
+pub struct SystemtenderUpdateRequest {
     pub config: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub force: Option<bool>,

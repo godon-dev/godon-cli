@@ -142,7 +142,7 @@ jobs:
           fi
           
           # Try to connect to an actual endpoint from our spec
-          if curl -sf http://localhost:4010/breeders > /dev/null 2>&1; then
+          if curl -sf http://localhost:4010/systemtenders > /dev/null 2>&1; then
             echo "✅ Prism is ready!"
             break
           else
@@ -176,19 +176,19 @@ jobs:
         echo "Testing /v0 path:"
         curl -v http://localhost:4010/v0 2>&1 | head -10 || echo "/v0 path failed"
 
-        echo "Testing /v0/breeders:"
-        curl -v http://localhost:4010/v0/breeders 2>&1 | head -10 || echo "/v0/breeders failed"
+        echo "Testing /v0/systemtenders:"
+        curl -v http://localhost:4010/v0/systemtenders 2>&1 | head -10 || echo "/v0/systemtenders failed"
 
         echo "Testing OpenAPI spec:"
         curl -v http://localhost:4010/openapi.json 2>&1 | head -5 || echo "OpenAPI spec failed"
 
         echo "=== Testing exact URLs that CLI will use ==="
-        echo "Testing /breeders (what CLI should call):"
-        curl -v http://localhost:4010/breeders 2>&1 | head -10 || echo "/breeders failed"
+        echo "Testing /systemtenders (what CLI should call):"
+        curl -v http://localhost:4010/systemtenders 2>&1 | head -10 || echo "/systemtenders failed"
 
-        echo "Testing POST /breeders:"
+        echo "Testing POST /systemtenders:"
         curl -X POST -H "Content-Type: application/json" -d '{"name":"test"}' \
-          http://localhost:4010/breeders 2>&1 | head -10 || echo "POST /breeders failed"
+          http://localhost:4010/systemtenders 2>&1 | head -10 || echo "POST /systemtenders failed"
 
         echo "Testing /credentials (new endpoints):"
         curl -v http://localhost:4010/credentials 2>&1 | head -10 || echo "/credentials failed"
@@ -215,91 +215,91 @@ jobs:
 
         echo "Running integration tests against Prism mock..."
 
-        # Test breeder list with HTTP (default)
-        echo "Testing: breeder list (HTTP default)"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder list
+        # Test systemtender list with HTTP (default)
+        echo "Testing: systemtender list (HTTP default)"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender list
 
         # Test explicit HTTP prefix
-        echo "Testing: breeder list (explicit http:// prefix)"
-        $BINARY_PATH --hostname=http://localhost --port=4010 breeder list
+        echo "Testing: systemtender list (explicit http:// prefix)"
+        $BINARY_PATH --hostname=http://localhost --port=4010 systemtender list
 
         # Test HTTPS prefix with insecure flag (using HTTP port for testing)
-        echo "Testing: breeder list (HTTPS prefix with --insecure flag)"
-        $BINARY_PATH --hostname=https://localhost --port=4010 --insecure breeder list || echo "Expected: HTTPS on HTTP port may fail"
+        echo "Testing: systemtender list (HTTPS prefix with --insecure flag)"
+        $BINARY_PATH --hostname=https://localhost --port=4010 --insecure systemtender list || echo "Expected: HTTPS on HTTP port may fail"
 
         # Test HTTPS prefix without insecure flag (should fail on missing certificates)
-        echo "Testing: breeder list (HTTPS prefix without --insecure flag - should fail)"
-        $BINARY_PATH --hostname=https://localhost --port=4010 breeder list && echo "❌ Unexpected success - should have failed without certificates" || echo "✅ Expected failure without SSL certificates"
+        echo "Testing: systemtender list (HTTPS prefix without --insecure flag - should fail)"
+        $BINARY_PATH --hostname=https://localhost --port=4010 systemtender list && echo "❌ Unexpected success - should have failed without certificates" || echo "✅ Expected failure without SSL certificates"
 
         # Test help command shows new --insecure flag
         echo "Testing: help shows --insecure flag"
         $BINARY_PATH --help | grep -q "insecure" && echo "✅ --insecure flag documented in help" || echo "❌ --insecure flag missing from help"
 
         # Create test YAML files using echo
-        echo 'meta:' > test_breeder.yml
-        echo '  configVersion: "0.2"' >> test_breeder.yml
-        echo 'breeder:' >> test_breeder.yml
-        echo '  type: "linux_performance"' >> test_breeder.yml
-        echo 'settings:' >> test_breeder.yml
-        echo '  sysctl:' >> test_breeder.yml
-        echo '    vm.swappiness:' >> test_breeder.yml
-        echo '      constraints:' >> test_breeder.yml
-        echo '        lower: 0' >> test_breeder.yml
-        echo '        upper: 100' >> test_breeder.yml
+        echo 'meta:' > test_systemtender.yml
+        echo '  configVersion: "0.2"' >> test_systemtender.yml
+        echo 'systemtender:' >> test_systemtender.yml
+        echo '  type: "linux_performance"' >> test_systemtender.yml
+        echo 'settings:' >> test_systemtender.yml
+        echo '  sysctl:' >> test_systemtender.yml
+        echo '    vm.swappiness:' >> test_systemtender.yml
+        echo '      constraints:' >> test_systemtender.yml
+        echo '        lower: 0' >> test_systemtender.yml
+        echo '        upper: 100' >> test_systemtender.yml
 
-        echo "Testing: breeder create"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder create --name="test-breeder" --file=test_breeder.yml
+        echo "Testing: systemtender create"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender create --name="test-systemtender" --file=test_systemtender.yml
 
-        # Test breeder show with a mock UUID
-        echo "Testing: breeder show"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder show --id=550e8400-e29b-41d4-a716-446655440000
+        # Test systemtender show with a mock UUID
+        echo "Testing: systemtender show"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender show --id=550e8400-e29b-41d4-a716-446655440000
 
         # Create update test file (config only, id passed via --id flag)
-        echo 'breeder:' > test_breeder_update.yml
-        echo '  type: "test_breeder"' >> test_breeder_update.yml
-        echo 'objectives:' >> test_breeder_update.yml
-        echo '  - name: "latency"' >> test_breeder_update.yml
-        echo 'settings:' >> test_breeder_update.yml
-        echo '  sysctl:' >> test_breeder_update.yml
-        echo '    net.core.somaxconn:' >> test_breeder_update.yml
-        echo '      constraints:' >> test_breeder_update.yml
-        echo '        - step: 100' >> test_breeder_update.yml
-        echo '          lower: 4096' >> test_breeder_update.yml
-        echo '          upper: 131072' >> test_breeder_update.yml
+        echo 'systemtender:' > test_systemtender_update.yml
+        echo '  type: "test_systemtender"' >> test_systemtender_update.yml
+        echo 'objectives:' >> test_systemtender_update.yml
+        echo '  - name: "latency"' >> test_systemtender_update.yml
+        echo 'settings:' >> test_systemtender_update.yml
+        echo '  sysctl:' >> test_systemtender_update.yml
+        echo '    net.core.somaxconn:' >> test_systemtender_update.yml
+        echo '      constraints:' >> test_systemtender_update.yml
+        echo '        - step: 100' >> test_systemtender_update.yml
+        echo '          lower: 4096' >> test_systemtender_update.yml
+        echo '          upper: 131072' >> test_systemtender_update.yml
 
-        echo "Testing: breeder update"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder update --id=550e8400-e29b-41d4-a716-446655440000 --file=test_breeder_update.yml
+        echo "Testing: systemtender update"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender update --id=550e8400-e29b-41d4-a716-446655440000 --file=test_systemtender_update.yml
 
-        echo "Testing: breeder update with --force"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder update --id=550e8400-e29b-41d4-a716-446655440000 --file=test_breeder_update.yml --force
+        echo "Testing: systemtender update with --force"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender update --id=550e8400-e29b-41d4-a716-446655440000 --file=test_systemtender_update.yml --force
 
-        # Test breeder purge (safe mode)
-        echo "Testing: breeder purge (safe mode)"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder purge --id=550e8400-e29b-41d4-a716-446655440000
+        # Test systemtender purge (safe mode)
+        echo "Testing: systemtender purge (safe mode)"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender purge --id=550e8400-e29b-41d4-a716-446655440000
 
-        # Test breeder stop
-        echo "Testing: breeder stop"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder stop --id=550e8400-e29b-41d4-a716-446655440000
+        # Test systemtender stop
+        echo "Testing: systemtender stop"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender stop --id=550e8400-e29b-41d4-a716-446655440000
 
-        # Test breeder start
-        echo "Testing: breeder start"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder start --id=550e8400-e29b-41d4-a716-446655440000
+        # Test systemtender start
+        echo "Testing: systemtender start"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender start --id=550e8400-e29b-41d4-a716-446655440000
 
-        # Test breeder purge with force flag
-        echo "Testing: breeder purge --force"
-        $BINARY_PATH --hostname=localhost --port=4010 breeder purge --force --id=550e8400-e29b-41d4-a716-446655440000
+        # Test systemtender purge with force flag
+        echo "Testing: systemtender purge --force"
+        $BINARY_PATH --hostname=localhost --port=4010 systemtender purge --force --id=550e8400-e29b-41d4-a716-446655440000
 
         # Test help shows new commands
         echo "Testing: help shows stop/start commands"
-        $BINARY_PATH breeder --help | grep -q "stop" && echo "✅ stop command documented" || echo "❌ stop command missing"
-        $BINARY_PATH breeder --help | grep -q "start" && echo "✅ start command documented" || echo "❌ start command missing"
-        echo "Testing: breeder purge --help shows --force flag"
-        $BINARY_PATH breeder purge --help | grep -q "force" && echo "✅ --force flag documented in purge" || echo "❌ --force flag missing from purge"
+        $BINARY_PATH systemtender --help | grep -q "stop" && echo "✅ stop command documented" || echo "❌ stop command missing"
+        $BINARY_PATH systemtender --help | grep -q "start" && echo "✅ start command documented" || echo "❌ start command missing"
+        echo "Testing: systemtender purge --help shows --force flag"
+        $BINARY_PATH systemtender purge --help | grep -q "force" && echo "✅ --force flag documented in purge" || echo "❌ --force flag missing from purge"
 
         # Test help commands
         echo "Testing: help commands"
         $BINARY_PATH --help
-        $BINARY_PATH breeder --help || true  # May fail but tests argument parsing
+        $BINARY_PATH systemtender --help || true  # May fail but tests argument parsing
 
         # === Credential Command Tests ===
         echo ""
@@ -333,7 +333,7 @@ jobs:
 
         # Test --debug flag
         echo "Testing: --debug flag works without breaking logic"
-        $BINARY_PATH --hostname=localhost --port=4010 --debug breeder list
+        $BINARY_PATH --hostname=localhost --port=4010 --debug systemtender list
         echo "✅ --debug flag works"
 
         # === Target Command Tests ===
@@ -381,7 +381,7 @@ jobs:
 
         # Test missing file
         echo "Testing: missing file error"
-        if $BINARY_PATH --hostname=localhost --port=4010 breeder create --name=test --file=nonexistent.yml 2>/dev/null; then
+        if $BINARY_PATH --hostname=localhost --port=4010 systemtender create --name=test --file=nonexistent.yml 2>/dev/null; then
           echo "❌ Should have failed on missing file"
           exit 1
         else
@@ -390,7 +390,7 @@ jobs:
 
         # Test missing required argument
         echo "Testing: missing --id argument"
-        if $BINARY_PATH --hostname=localhost --port=4010 breeder show 2>/dev/null; then
+        if $BINARY_PATH --hostname=localhost --port=4010 systemtender show 2>/dev/null; then
           echo "❌ Should have failed on missing --id"
           exit 1
         else
@@ -402,7 +402,7 @@ jobs:
         echo "=== Testing Output Formats ==="
 
         echo "Testing: JSON output format"
-        JSON_OUTPUT=$($BINARY_PATH --hostname=localhost --port=4010 --output=json breeder list)
+        JSON_OUTPUT=$($BINARY_PATH --hostname=localhost --port=4010 --output=json systemtender list)
         if echo "$JSON_OUTPUT" | grep -q '"id"\|"name"\|"status"'; then
           echo "✅ JSON output contains expected fields"
         else
@@ -410,15 +410,15 @@ jobs:
         fi
 
         echo "Testing: YAML output format"
-        YAML_OUTPUT=$($BINARY_PATH --hostname=localhost --port=4010 --output=yaml breeder list)
+        YAML_OUTPUT=$($BINARY_PATH --hostname=localhost --port=4010 --output=yaml systemtender list)
         if echo "$YAML_OUTPUT" | grep -q -e '^-' -e 'id:' -e 'name:'; then
           echo "✅ YAML output contains expected fields"
         else
           echo "❌ YAML output missing expected fields"
         fi
 
-        echo "Testing: JSON output for breeder show"
-        $BINARY_PATH --hostname=localhost --port=4010 --output=json breeder show --id=550e8400-e29b-41d4-a716-446655440000
+        echo "Testing: JSON output for systemtender show"
+        $BINARY_PATH --hostname=localhost --port=4010 --output=json systemtender show --id=550e8400-e29b-41d4-a716-446655440000
 
         echo "Testing: YAML output for credential list"
         $BINARY_PATH --hostname=localhost --port=4010 --output=yaml credential list

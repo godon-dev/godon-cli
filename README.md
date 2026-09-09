@@ -1,13 +1,13 @@
 # Godon CLI
 
-A Rust-based CLI tool for controlling and managing the Godon optimizer breeders via the Godon Control API.
+A Rust-based CLI tool for controlling and managing the Godon optimizer systemtenders via the Godon Control API.
 
 ## Features
 
-- **Breeder Management**: List, create, show, update, and delete breeder configurations
+- **Systemtender Management**: List, create, show, update, and delete systemtender configurations
 - **Credential Management**: Store and manage SSH keys, API tokens, and other sensitive data
 - **Target Management**: Define and manage target hosts for optimization runs
-- **YAML-based Configuration**: Simple YAML files for breeders, credentials, and targets
+- **YAML-based Configuration**: Simple YAML files for systemtenders, credentials, and targets
 - **RESTful API Integration**: Communicates with the Godon Control API
 - **Cross-platform Support**: Currently Linux x86_64, extensible to other platforms
 
@@ -21,11 +21,11 @@ The godon-cli is distributed as a container image from the [godon-images](https:
 # Run directly
 docker run ghcr.io/godon-dev/godon-cli:latest --help
 
-# Example: List breeders
-docker run ghcr.io/godon-dev/godon-cli:latest breeder list
+# Example: List systemtenders
+docker run ghcr.io/godon-dev/godon-cli:latest systemtender list
 
 # Mount working directory for file operations
-docker run -v $(pwd):/work -w /work ghcr.io/godon-dev/godon-cli:latest breeder create --file config.yaml
+docker run -v $(pwd):/work -w /work ghcr.io/godon-dev/godon-cli:latest systemtender create --file config.yaml
 ```
 
 ### Building from Source
@@ -52,38 +52,38 @@ nix --experimental-features "nix-command flakes" build
 # Show help
 godon_cli --help
 
-# List all breeders
-godon_cli breeder list
+# List all systemtenders
+godon_cli systemtender list
 
 # Connect to a different API server
-godon_cli --hostname api.example.com --port 9090 breeder list
+godon_cli --hostname api.example.com --port 9090 systemtender list
 ```
 
 ### Configuration Options
 
 ```bash
 # Connect to a different API server
-godon_cli --hostname api.example.com --port 9090 breeder list
+godon_cli --hostname api.example.com --port 9090 systemtender list
 
 # Use HTTPS with SSL verification
-godon_cli --hostname https://api.example.com --port 443 breeder list
+godon_cli --hostname https://api.example.com --port 443 systemtender list
 
 # Use HTTPS but skip SSL verification (for development/testing)
-godon_cli --hostname https://localhost:8443 --insecure breeder list
+godon_cli --hostname https://localhost:8443 --insecure systemtender list
 ```
 
-### Breeder Management
+### Systemtender Management
 
-#### Create a Breeder
+#### Create a Systemtender
 
-Create a YAML configuration file `breeder_config.yaml` with native YAML syntax:
+Create a YAML configuration file `systemtender_config.yaml` with native YAML syntax:
 
 ```yaml
 meta:
   configVersion: "0.2"
   description: "Linux network performance optimization"
 
-breeder:
+systemtender:
   type: "linux_performance"
 
 settings:
@@ -95,21 +95,21 @@ settings:
         upper: 6291456
 ```
 
-Then create the breeder with a name:
+Then create the systemtender with a name:
 
 ```bash
-godon_cli breeder create --name "genetic-optimizer-1" --file breeder_config.yaml
+godon_cli systemtender create --name "genetic-optimizer-1" --file systemtender_config.yaml
 ```
 
-#### Show Breeder Details
+#### Show Systemtender Details
 
 ```bash
-godon_cli breeder show --id 550e8400-e29b-41d4-a716-446655440000
+godon_cli systemtender show --id 550e8400-e29b-41d4-a716-446655440000
 ```
 
-#### Update a Breeder
+#### Update a Systemtender
 
-Create an update configuration file `breeder_update.yaml` with native YAML syntax:
+Create an update configuration file `systemtender_update.yaml` with native YAML syntax:
 
 ```yaml
 uuid: "550e8400-e29b-41d4-a716-446655440000"
@@ -124,13 +124,13 @@ config:
 Then update:
 
 ```bash
-godon_cli breeder update --file breeder_update.yaml
+godon_cli systemtender update --file systemtender_update.yaml
 ```
 
-#### Delete a Breeder
+#### Delete a Systemtender
 
 ```bash
-godon_cli breeder purge --id 550e8400-e29b-41d4-a716-446655440000
+godon_cli systemtender purge --id 550e8400-e29b-41d4-a716-446655440000
 ```
 
 ### Credential Management
@@ -230,12 +230,12 @@ You can override these using command-line flags:
 
 ```bash
 # Basic configuration
-godon_cli --hostname api.example.com --port 9090 --api-version v1 breeder list
+godon_cli --hostname api.example.com --port 9090 --api-version v1 systemtender list
 
 # Protocol and SSL options
-godon_cli --hostname http://api.example.com --port 80 breeder list     # HTTP (explicit)
-godon_cli --hostname https://api.example.com --port 443 breeder list    # HTTPS (secure)
-godon_cli --hostname https://localhost --port 8443 --insecure breeder list  # HTTPS (insecure)
+godon_cli --hostname http://api.example.com --port 80 systemtender list     # HTTP (explicit)
+godon_cli --hostname https://api.example.com --port 443 systemtender list    # HTTPS (secure)
+godon_cli --hostname https://localhost --port 8443 --insecure systemtender list  # HTTPS (insecure)
 ```
 
 ## API Specification
