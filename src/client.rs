@@ -1,4 +1,4 @@
-use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target};
+use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target, Steerwish, SteerwishCreate, SteerwishSummary};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use std::time::Duration;
@@ -196,6 +196,62 @@ impl GodonClient {
     pub async fn start_systemtender(&self, uuid: &str) -> ApiResponse<serde_json::Value> {
         let url = format!("{}/systemtenders/{}/start", self.base_url(), urlencoding::encode(uuid));
         
+        match self.client.post(&url).send().await {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    // ─── Steerwishes ────────────────────────────────────────────────
+
+    pub async fn list_steerwishes(&self) -> ApiResponse<Vec<SteerwishSummary>> {
+        let url = format!("{}/steerwishes", self.base_url());
+
+        match self.client.get(&url).send().await {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn declare_steerwish(&self, wish: SteerwishCreate) -> ApiResponse<Steerwish> {
+        let url = format!("{}/steerwishes", self.base_url());
+
+        if self.debug {
+            eprintln!("Sending JSON: {}", serde_json::to_string_pretty(&wish).unwrap_or_default());
+        }
+
+        match self.client
+            .post(&url)
+            .json(&wish)
+            .send()
+            .await
+        {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn declare_steerwish_from_yaml(&self, yaml_content: &str) -> ApiResponse<Steerwish> {
+        let wish: SteerwishCreate = match serde_yaml::from_str(yaml_content) {
+            Ok(w) => w,
+            Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
+        };
+
+        self.declare_steerwish(wish).await
+    }
+
+    pub async fn get_steerwish(&self, wish_id: &str) -> ApiResponse<Steerwish> {
+        let url = format!("{}/steerwishes/{}", self.base_url(), wish_id);
+
+        match self.client.get(&url).send().await {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn close_steerwish(&self, wish_id: &str) -> ApiResponse<Steerwish> {
+        let url = format!("{}/steerwishes/{}/close", self.base_url(), wish_id);
+
         match self.client.post(&url).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
