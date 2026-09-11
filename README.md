@@ -7,7 +7,8 @@ A Rust-based CLI tool for controlling and managing the Godon optimizer systemten
 - **Systemtender Management**: List, create, show, update, and delete systemtender configurations
 - **Credential Management**: Store and manage SSH keys, API tokens, and other sensitive data
 - **Target Management**: Define and manage target hosts for optimization runs
-- **YAML-based Configuration**: Simple YAML files for systemtenders, credentials, and targets
+- **Steerwish Management**: Declare, list, show, and close steerwishes - declared outcomes (with band, guardrails, and regime) the system holds and tends
+- **YAML-based Configuration**: Simple YAML files for systemtenders, credentials, targets, and steerwishes
 - **RESTful API Integration**: Communicates with the Godon Control API
 - **Cross-platform Support**: Currently Linux x86_64, extensible to other platforms
 
@@ -131,6 +132,53 @@ godon_cli systemtender update --file systemtender_update.yaml
 
 ```bash
 godon_cli systemtender purge --id 550e8400-e29b-41d4-a716-446655440000
+```
+
+### Steerwish Management
+
+A steerwish is a declared outcome the system holds and tends: one measured
+value, a band, guardrails, and (optionally) a rescue budget. Omitted budget
+means upkeep indefinitely; omitted regime means standing.
+
+#### Declare a Steerwish
+
+Create a wish file `steerwish.yaml`:
+
+```yaml
+outcome: "chainend.shift"
+band:
+  lo: -0.14
+  hi: -0.06
+  target: -0.10    # receipt and reporting only - the judge needs only the band
+limits:
+  exclude: []      # param names that may not be moved at all
+  maxChange: 0.5   # no input ends further than half its range from neutral
+budget: 2          # re-acts after drift; omit for unbounded upkeep
+regime: standing   # the only regime today
+```
+
+Then declare it:
+
+```bash
+godon_cli wish declare --file steerwish.yaml
+```
+
+#### List Steerwishes
+
+```bash
+godon_cli wish list
+```
+
+#### Show a Steerwish (with full event history)
+
+```bash
+godon_cli wish show --id 550e8400-e29b-41d4-a716-446655440000
+```
+
+#### Close a Steerwish
+
+```bash
+godon_cli wish close --id 550e8400-e29b-41d4-a716-446655440000
 ```
 
 ### Credential Management
