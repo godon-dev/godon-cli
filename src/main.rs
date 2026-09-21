@@ -258,7 +258,7 @@ fn format_steerwish_list(steerwishes: &[SteerwishSummary]) {
     println!("Found {} steerwish(es)", steerwishes.len());
     for steerwish in steerwishes {
         println!("  ID: {}", steerwish.id);
-        println!("  Outcome: {}", steerwish.outcome);
+        println!("  Outcome: {}", steerwish.body.get("outcome").and_then(|v| v.as_str()).unwrap_or("(carried by the body)"));
         println!("  State: {}", steerwish.state);
         println!("  Created: {}", steerwish.created_at);
         println!();
@@ -267,32 +267,15 @@ fn format_steerwish_list(steerwishes: &[SteerwishSummary]) {
 
 fn format_steerwish(steerwish: &Steerwish) {
     println!("  ID: {}", steerwish.id);
-    println!("  Outcome: {}", steerwish.outcome);
     println!("  State: {}", steerwish.state);
-    println!(
-        "  Band: [{}, {}]",
-        steerwish.band.lo, steerwish.band.hi
-    );
-    if let Some(target) = steerwish.band.target {
-        println!("  Target: {} (receipt only)", target);
-    }
-    if let Some(limits) = &steerwish.limits {
-        if let Some(exclude) = &limits.exclude {
-            println!("  Excluded inputs: {:?}", exclude);
-        }
-        if let Some(max_change) = limits.max_change {
-            println!("  Max change: {} of range from neutral", max_change);
-        }
-    }
-    println!(
-        "  Budget: {}",
-        steerwish
-            .budget
-            .map(|b| b.to_string())
-            .unwrap_or_else(|| "unbounded".to_string())
-    );
-    println!("  Regime: {}", steerwish.regime.as_deref().unwrap_or("standing"));
     println!("  Created: {}", steerwish.created_at);
+    // wish-shape freedom: the body is the controller's object - shown
+    // verbatim, whatever grammar it carries (today outcome+band, later
+    // claims and terms)
+    println!(
+        "  Body: {}",
+        serde_json::to_string_pretty(&steerwish.body).unwrap_or_default()
+    );
     if let Some(events) = &steerwish.events {
         println!("  Events:");
         for event in events {

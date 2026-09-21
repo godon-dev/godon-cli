@@ -1,4 +1,4 @@
-use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target, Steerwish, SteerwishCreate, SteerwishSummary};
+use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target, Steerwish, SteerwishSummary};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use std::time::Duration;
@@ -213,7 +213,9 @@ impl GodonClient {
         }
     }
 
-    pub async fn declare_steerwish(&self, wish: SteerwishCreate) -> ApiResponse<Steerwish> {
+    pub async fn declare_steerwish(&self, wish: serde_json::Value) -> ApiResponse<Steerwish> {
+        // wish-shape freedom: the body is the declarer's own, forwarded
+        // verbatim - the controller validates the grammar (the door)
         let url = format!("{}/steerwishes", self.base_url());
 
         if self.debug {
@@ -232,9 +234,13 @@ impl GodonClient {
     }
 
     pub async fn declare_steerwish_from_yaml(&self, yaml_content: &str) -> ApiResponse<Steerwish> {
-        let wish: SteerwishCreate = match serde_yaml::from_str(yaml_content) {
+        let parsed: serde_yaml::Value = match serde_yaml::from_str(yaml_content) {
             Ok(w) => w,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
+        };
+        let wish = match serde_json::to_value(&parsed) {
+            Ok(v) => v,
+            Err(e) => return ApiResponse::error(format!("YAML to JSON error: {}", e)),
         };
 
         self.declare_steerwish(wish).await

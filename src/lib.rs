@@ -113,35 +113,9 @@ impl<T> ApiResponse<T> {
 
 // ─── Steerwishes ────────────────────────────────────────────────────
 // Mirrors images/godon-api/openapi.yml schemas (Steerwish, SteerwishSummary,
-// SteerwishCreate, SteerwishBand, SteerwishLimits, SteerwishEvent).
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteerwishBand {
-    pub lo: f64,
-    pub hi: f64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteerwishLimits {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exclude: Option<Vec<String>>,
-    #[serde(rename = "maxChange", default, skip_serializing_if = "Option::is_none")]
-    pub max_change: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteerwishCreate {
-    pub outcome: String,
-    pub band: SteerwishBand,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub limits: Option<SteerwishLimits>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub budget: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub regime: Option<String>,
-}
+// SteerwishEvent). Wish-shape freedom (2026-09-21): the wish body is the
+// declarer's own - the CLI carries it verbatim and the controller validates
+// (the door). Only the lifecycle envelope is typed here.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SteerwishEvent {
@@ -155,28 +129,23 @@ pub struct SteerwishEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SteerwishSummary {
     pub id: String,
-    pub outcome: String,
     pub state: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(flatten)]
+    pub body: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Steerwish {
     pub id: String,
-    pub outcome: String,
-    pub band: SteerwishBand,
     pub state: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub limits: Option<SteerwishLimits>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub budget: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub regime: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub events: Option<Vec<SteerwishEvent>>,
+    #[serde(flatten)]
+    pub body: serde_json::Map<String, serde_json::Value>,
 }
 
 #[cfg(test)]
@@ -187,44 +156,39 @@ mod steerwish_tests {
     // (images/godon-api/openapi.yml, schemas Steerwish*).
 
     #[test]
-    fn steerwish_create_parses_from_yaml() {
+    fn steerwish_yaml_passthrough_verbatim() {
+        // wish-shape freedom: unknown/claim-shaped fields survive the
+        // YAML -> JSON hop untouched - the controller validates (the door)
         let yaml = r#"
 outcome: chainend.shift
 band:
   lo: -0.14
   hi: -0.06
   target: -0.10
-limits:
-  exclude: []
-  maxChange: 0.5
-budget: 2
-regime: standing
+claims:
+  - outcome: latency(x)
+    direction: minimize
 "#;
-        let wish: SteerwishCreate = serde_yaml::from_str(yaml).expect("parse");
-        assert_eq!(wish.outcome, "chainend.shift");
-        assert_eq!(wish.band.lo, -0.14);
-        assert_eq!(wish.band.hi, -0.06);
-        assert_eq!(wish.band.target, Some(-0.10));
-        assert_eq!(wish.limits.as_ref().unwrap().max_change, Some(0.5));
-        assert_eq!(wish.budget, Some(2));
-        assert_eq!(wish.regime.as_deref(), Some("standing"));
+        let parsed: serde_yaml::Value = serde_yaml::from_str(yaml).expect("parse");
+        let json = serde_json::to_value(&parsed).unwrap();
+        assert_eq!(json["outcome"], "chainend.shift");
+        assert_eq!(json["band"]["lo"], -0.14);
+        assert_eq!(json["claims"][0]["direction"], "minimize");
     }
 
     #[test]
-    fn steerwish_create_minimal_omits_optionals() {
-        let wish = SteerwishCreate {
-            outcome: "chainend.shift".into(),
-            band: SteerwishBand { lo: -0.14, hi: -0.06, target: None },
-            limits: None,
-            budget: None,
-            regime: None,
-        };
-        let json = serde_json::to_value(&wish).unwrap();
-        assert_eq!(json["outcome"], "chainend.shift");
-        assert_eq!(json["band"]["lo"], -0.14);
-        assert!(json.get("budget").is_none(), "omitted budget must not serialize");
-        assert!(json.get("regime").is_none());
-        assert!(json.get("limits").is_none());
+    fn steerwish_envelope_keeps_body_verbatim() {
+        let json = r#"{
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "outcome": "chainend.shift",
+            "band": {"lo": -0.14, "hi": -0.06},
+            "state": "declared",
+            "createdAt": "2026-09-10T10:30:00Z"
+        }"#;
+        let wish: Steerwish = serde_json::from_str(json).expect("parse");
+        assert_eq!(wish.state, "declared");
+        assert_eq!(wish.body.get("outcome").and_then(|v| v.as_str()), Some("chainend.shift"));
+        assert_eq!(wish.body["band"]["lo"], -0.14);
     }
 
     #[test]
