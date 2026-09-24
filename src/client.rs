@@ -264,6 +264,24 @@ impl GodonClient {
         }
     }
 
+    pub async fn update_steerwish(&self, wish_id: &str, body: serde_json::Value) -> ApiResponse<Steerwish> {
+        let url = format!("{}/steerwishes/{}/update", self.base_url(), wish_id);
+
+        match self.client.post(&url).json(&body).send().await {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
+    pub async fn delete_steerwish(&self, wish_id: &str) -> ApiResponse<serde_json::Value> {
+        let url = format!("{}/steerwishes/{}", self.base_url(), wish_id);
+
+        match self.client.delete(&url).send().await {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
     pub async fn list_credentials(&self) -> ApiResponse<Vec<Credential>> {
         let url = format!("{}/credentials", self.base_url());
         
