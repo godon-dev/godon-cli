@@ -118,18 +118,12 @@ enum WishCommands {
         id: String,
     },
 
-    /// The holder corrects the wish: new band, same identity
+    /// The holder corrects the wish: new terms, same identity (YAML file)
     Update {
         #[arg(long)]
         id: String,
         #[arg(long)]
-        lo: f64,
-        #[arg(long)]
-        hi: f64,
-        #[arg(long)]
-        target: Option<f64>,
-        #[arg(long)]
-        reason: Option<String>,
+        file: PathBuf,
     },
 
     /// Purge the wish: close first, then forget
@@ -471,15 +465,17 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
             }
         }
 
-        WishCommands::Update { id, lo, hi, target, reason } => {
-            let mut band = serde_json::json!({ "lo": lo, "hi": hi });
-            if let Some(t) = target {
-                band["target"] = serde_json::json!(t);
-            }
-            let mut body = serde_json::json!({ "band": band });
-            if let Some(r) = &reason {
-                body["reason"] = serde_json::json!(r);
-            }
+        WishCommands::Update { id, file } => {
+            let content = match std::fs::read_to_string(&file) {
+                Ok(c) => c,
+                Err(e) => write_error(&format!("Failed to read file: {}", e)),
+            };
+
+            let body: serde_json::Value = match serde_yaml::from_str(&content) {
+                Ok(v) => v,
+                Err(e) => write_error(&format!("Failed to parse wish YAML: {}", e)),
+            };
+
             let response = client.update_steerwish(&id, body).await;
             if response.success {
                 if let Some(steerwish) = response.data {
