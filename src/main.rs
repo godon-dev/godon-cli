@@ -117,6 +117,26 @@ enum WishCommands {
         #[arg(long)]
         id: String,
     },
+
+    /// The holder corrects the wish: new band, same identity
+    Update {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        lo: f64,
+        #[arg(long)]
+        hi: f64,
+        #[arg(long)]
+        target: Option<f64>,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+
+    /// Purge the wish: close first, then forget
+    Delete {
+        #[arg(long)]
+        id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -445,6 +465,40 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
                     } else {
                         format_output(&steerwish, output);
                     }
+                }
+            } else {
+                write_error(response.error.as_deref().unwrap_or("Unknown error"));
+            }
+        }
+
+        WishCommands::Update { id, lo, hi, target, reason } => {
+            let mut band = serde_json::json!({ "lo": lo, "hi": hi });
+            if let Some(t) = target {
+                band["target"] = serde_json::json!(t);
+            }
+            let mut body = serde_json::json!({ "band": band });
+            if let Some(r) = &reason {
+                body["reason"] = serde_json::json!(r);
+            }
+            let response = client.update_steerwish(&id, body).await;
+            if response.success {
+                if let Some(steerwish) = response.data {
+                    if matches!(output, OutputFormat::Text) {
+                        format_steerwish(&steerwish);
+                    } else {
+                        format_output(&steerwish, output);
+                    }
+                }
+            } else {
+                write_error(response.error.as_deref().unwrap_or("Unknown error"));
+            }
+        }
+
+        WishCommands::Delete { id } => {
+            let response = client.delete_steerwish(&id).await;
+            if response.success {
+                if let Some(result) = response.data {
+                    format_output(&result, output);
                 }
             } else {
                 write_error(response.error.as_deref().unwrap_or("Unknown error"));
