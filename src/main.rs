@@ -271,8 +271,20 @@ fn format_systemtender_list(systemtenders: &[SystemtenderSummary]) {
 fn format_steerwish_list(steerwishes: &[SteerwishSummary]) {
     println!("Found {} steerwish(es)", steerwishes.len());
     for steerwish in steerwishes {
+        // wish-shape freedom: read the aim from either grammar - the first
+        // claim (claims + terms) or the top-level outcome (retired N=1
+        // shape, still shown for pre-flip records)
+        let aim = steerwish
+            .body
+            .get("claims")
+            .and_then(|c| c.as_array())
+            .and_then(|c| c.first())
+            .and_then(|c| c.get("outcome"))
+            .and_then(|v| v.as_str())
+            .or_else(|| steerwish.body.get("outcome").and_then(|v| v.as_str()))
+            .unwrap_or("(carried by the body)");
         println!("  ID: {}", steerwish.id);
-        println!("  Outcome: {}", steerwish.body.get("outcome").and_then(|v| v.as_str()).unwrap_or("(carried by the body)"));
+        println!("  Outcome: {}", aim);
         println!("  State: {}", steerwish.state);
         println!("  Created: {}", steerwish.created_at);
         println!();
@@ -284,8 +296,7 @@ fn format_steerwish(steerwish: &Steerwish) {
     println!("  State: {}", steerwish.state);
     println!("  Created: {}", steerwish.created_at);
     // wish-shape freedom: the body is the controller's object - shown
-    // verbatim, whatever grammar it carries (today outcome+band, later
-    // claims and terms)
+    // verbatim, whatever grammar it carries (today claims + terms)
     println!(
         "  Body: {}",
         serde_json::to_string_pretty(&steerwish.body).unwrap_or_default()
