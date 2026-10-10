@@ -11,8 +11,11 @@ pub struct GodonClient {
 
 impl GodonClient {
     pub fn new(hostname: String, port: u16, api_version: String, insecure: bool, debug: bool) -> Result<Self> {
+        // 90s default (designs/2026-10-10): enough headroom for bare
+        // creates and slow lists; wait modes set their own per-request
+        // budget (server bound + 30).
         let mut builder = Client::builder()
-            .timeout(Duration::from_secs(30));
+            .timeout(Duration::from_secs(90));
 
         if insecure {
             builder = builder.danger_accept_invalid_certs(true);
@@ -63,12 +66,12 @@ impl GodonClient {
                     }
 
                     match serde_json::from_str::<T>(&body) {
-                        Ok(data) => ApiResponse::success(data),
+                        Ok(data) => ApiResponse::success(data).with_status(status.as_u16()),
                         Err(e) => {
                             if self.debug {
                                 eprintln!("JSON parse error: {}", e);
                             }
-                            ApiResponse::error(format!("JSON parse error: {}", e))
+                            ApiResponse::error(format!("JSON parse error: {}", e)).with_status(status.as_u16())
                         }
                     }
                 }
@@ -86,7 +89,7 @@ impl GodonClient {
                         .and_then(|v| v.get("message").and_then(|m| m.as_str()).map(String::from))
                         .unwrap_or_else(|| format!("HTTP Error: {}", status));
 
-                    ApiResponse::error(error_msg)
+                    ApiResponse::error(error_msg).with_status(status.as_u16())
                 }
                 Err(_) => ApiResponse::error(format!("HTTP Error: {}", status)),
             }
@@ -132,6 +135,41 @@ impl GodonClient {
         };
 
         self.create_systemtender(request).await
+    }
+
+    /// Wait mode (designs/2026-10-10): ?wait=active&timeout=N. The
+    /// per-request client budget is N+30 so the server's bound always
+    /// expires first — a timeout answers the row AS-IS (200), never a
+    /// dangling connection. Returns the full row (Systemtender), whose
+    /// status carries the verdict; a name clash answers 409 + the
+    /// existing row's message.
+    pub async fn create_systemtender_from_yaml_wait(&self, yaml_content: &str, name: &str, timeout_secs: u64) -> ApiResponse<Systemtender> {
+        let config: serde_json::Value = match serde_yaml::from_str(yaml_content) {
+            Ok(c) => c,
+            Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
+        };
+
+        let url = format!("{}/systemtenders", self.base_url());
+        let request = SystemtenderCreateRequest {
+            name: name.to_string(),
+            config,
+        };
+
+        if self.debug {
+            eprintln!("Sending JSON: {}", serde_json::to_string_pretty(&request).unwrap_or_default());
+        }
+
+        match self.client
+            .post(&url)
+            .query(&[("wait", "active"), ("timeout", &timeout_secs.to_string())])
+            .timeout(Duration::from_secs(timeout_secs + 30))
+            .json(&request)
+            .send()
+            .await
+        {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
     }
 
     pub async fn get_systemtender(&self, uuid: &str) -> ApiResponse<Systemtender> {

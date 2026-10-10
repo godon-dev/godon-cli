@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use godon_cli::{Steerwish, SteerwishSummary, Systemtender, SystemtenderSummary, Credential, GodonClient, Target};
+use godon_cli::{create_wait_met, EXIT_CREATE_UNMET, EXIT_NAME_TAKEN, EXIT_PURGE_UNMET, Steerwish, SteerwishSummary, Systemtender, SystemtenderSummary, Credential, GodonClient, Target};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -65,6 +65,15 @@ enum SystemtenderCommands {
         name: String,
         #[arg(long)]
         file: PathBuf,
+        /// Wait server-side until the systemtender is active (or the
+        /// create fails / the timeout is reached). Default: accept the
+        /// 202 (row in `creating`) and return at once.
+        #[arg(long, default_value_t = false)]
+        wait: bool,
+        /// Seconds to wait for the active state (--wait only,
+        /// default 60). The client gives itself N+30 seconds.
+        #[arg(long, default_value_t = 60)]
+        timeout: u64,
     },
 
     Show {
@@ -96,6 +105,14 @@ enum SystemtenderCommands {
         id: String,
         #[arg(long)]
         force: bool,
+        /// Wait until the systemtender is fully gone (GET answers
+        /// 404). Default: accept the 202 (deletion marker set) and
+        /// return at once.
+        #[arg(long, default_value_t = false)]
+        wait: bool,
+        /// Seconds to wait for the 404 (--wait only, default 60).
+        #[arg(long, default_value_t = 60)]
+        timeout: u64,
     },
 }
 
@@ -171,6 +188,14 @@ enum TargetCommands {
         #[arg(long)]
         id: String,
     },
+}
+
+/// Same as write_error, but with the async contract's distinct exit
+/// code (designs/2026-10-10): scripts branch on the number, humans
+/// read the prose.
+fn write_error_exit(message: &str, code: i32) -> ! {
+    eprintln!("Error: {}", message);
+    std::process::exit(code);
 }
 
 fn write_error(message: &str) -> ! {
@@ -546,17 +571,62 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
             }
         }
 
-        SystemtenderCommands::Create { name, file } => {
+        SystemtenderCommands::Create { name, file, wait, timeout } => {
             let content = match std::fs::read_to_string(&file) {
                 Ok(c) => c,
                 Err(e) => write_error(&format!("Failed to read file: {}", e)),
             };
 
+            // Wait mode (designs/2026-10-10): the server polls its read
+            // path until the row is terminal-for-create or the bound;
+            // the verdict rides the row state, the exit code carries it.
+            if wait {
+                let response = client.create_systemtender_from_yaml_wait(&content, &name, timeout).await;
+                if response.status == Some(409) {
+                    write_error_exit(
+                        &format!("Name already taken: {}", response.error.as_deref().unwrap_or("a systemtender with this name exists")),
+                        EXIT_NAME_TAKEN,
+                    );
+                }
+                if response.success {
+                    if let Some(row) = response.data {
+                        if matches!(output, OutputFormat::Text) {
+                            format_systemtender(&row);
+                        } else {
+                            format_output(&row, output);
+                        }
+                        if create_wait_met(&row.status) {
+                            return;
+                        }
+                        // Unmet: create-failed (reason on the row) or
+                        // still creating at the bound (executor runs on)
+                        if let Some(reason) = row.creation_reason.as_deref() {
+                            eprintln!("Create failed: {}", reason);
+                        }
+                        eprintln!("Create expectation unmet, status: {}", row.status);
+                        std::process::exit(EXIT_CREATE_UNMET);
+                    }
+                } else {
+                    write_error(response.error.as_deref().unwrap_or("Unknown error"));
+                }
+            }
+
+            // Async default: 202 + the row in `creating`
             let response = client.create_systemtender_from_yaml(&content, &name).await;
+            if response.status == Some(409) {
+                write_error_exit(
+                    &format!("Name already taken: {}", response.error.as_deref().unwrap_or("a systemtender with this name exists")),
+                    EXIT_NAME_TAKEN,
+                );
+            }
             if response.success {
                 if let Some(systemtender) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_systemtender_summary(&systemtender);
+                        println!("Systemtender create accepted (async):");
+                        println!("  ID: {}", systemtender.id);
+                        println!("  Name: {}", systemtender.name);
+                        println!("  Status: {}", systemtender.status);
+                        println!("  Poll with: systemtender show --id {}", systemtender.id);
                     } else {
                         format_output(&systemtender, output);
                     }
@@ -634,20 +704,49 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
             }
         }
 
-        SystemtenderCommands::Purge { id, force } => {
+        SystemtenderCommands::Purge { id, force, wait, timeout } => {
             let response = client.delete_systemtender(&id, force).await;
-            if response.success {
-                if matches!(output, OutputFormat::Text) {
-                    if force {
-                        println!("Systemtender force deleted (workers cancelled): {}", id);
-                    } else {
-                        println!("Systemtender deleted: {}", id);
-                    }
-                } else if let Some(data) = response.data {
-                    format_output(&data, output);
-                }
-            } else {
+            if !response.success {
                 write_error(response.error.as_deref().unwrap_or("Unknown error"));
+            }
+
+            if matches!(output, OutputFormat::Text) {
+                if force {
+                    println!("Systemtender deletion requested (force, workers cancelled): {}", id);
+                } else {
+                    println!("Systemtender deletion requested: {}", id);
+                }
+            } else if let Some(data) = response.data {
+                format_output(&data, output);
+            }
+
+            // Sync delete as the fallback (designs/2026-10-10): no
+            // server-side wait on DELETE — the CLI polls GET until the
+            // row is gone; 404 is the deletion-done receipt.
+            if wait {
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
+                loop {
+                    if std::time::Instant::now() >= deadline {
+                        eprintln!("Purge expectation unmet: the systemtender is still visible after {}s", timeout);
+                        std::process::exit(EXIT_PURGE_UNMET);
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    let poll = client.get_systemtender(&id).await;
+                    if poll.status == Some(404) {
+                        if matches!(output, OutputFormat::Text) {
+                            println!("Systemtender gone: {}", id);
+                        }
+                        return;
+                    }
+                    if !poll.success {
+                        write_error(poll.error.as_deref().unwrap_or("Unknown error"));
+                    }
+                    if let Some(row) = poll.data {
+                        if let Some(reason) = row.deletion_reason.as_deref() {
+                            eprintln!("Deletion state: {} ({})", row.status, reason);
+                        }
+                    }
+                }
             }
         }
     }
@@ -717,5 +816,89 @@ async fn handle_credential_command(client: &GodonClient, cmd: CredentialCommands
                 write_error(response.error.as_deref().unwrap_or("Unknown error"));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod async_contract_tests {
+    use super::{Cli, Commands, SystemtenderCommands};
+    use clap::Parser;
+    use godon_cli::{create_wait_met, EXIT_CREATE_UNMET, EXIT_ERROR, EXIT_NAME_TAKEN, EXIT_OK, EXIT_PURGE_UNMET};
+
+    // ── arg parse: the wait/timeout surface (designs/2026-10-10) ──
+
+    #[test]
+    fn create_defaults_to_async_with_timeout_60() {
+        let cli = Cli::try_parse_from([
+            "godon_cli", "systemtender", "create",
+            "--name", "bench", "--file", "cfg.yaml",
+        ]).expect("parse");
+        match cli.command {
+            Commands::Systemtender { subcommand: SystemtenderCommands::Create { wait, timeout, .. } } => {
+                assert!(!wait, "async is the default");
+                assert_eq!(timeout, 60);
+            }
+            _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn create_parses_wait_and_timeout() {
+        let cli = Cli::try_parse_from([
+            "godon_cli", "systemtender", "create",
+            "--name", "bench", "--file", "cfg.yaml",
+            "--wait", "--timeout", "90",
+        ]).expect("parse");
+        match cli.command {
+            Commands::Systemtender { subcommand: SystemtenderCommands::Create { wait, timeout, .. } } => {
+                assert!(wait);
+                assert_eq!(timeout, 90);
+            }
+            _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn purge_parses_wait_and_timeout() {
+        let cli = Cli::try_parse_from([
+            "godon_cli", "systemtender", "purge",
+            "--id", "550e8400-e29b-41d4-a716-446655440000",
+            "--wait", "--timeout", "30",
+        ]).expect("parse");
+        match cli.command {
+            Commands::Systemtender { subcommand: SystemtenderCommands::Purge { wait, timeout, .. } } => {
+                assert!(wait);
+                assert_eq!(timeout, 30);
+            }
+            _ => panic!("wrong command"),
+        }
+    }
+
+    // ── exit-code map: distinct numbers, scripts branch on them ──
+
+    #[test]
+    fn exit_codes_are_distinct() {
+        let codes = [EXIT_OK, EXIT_ERROR, EXIT_NAME_TAKEN, EXIT_CREATE_UNMET, EXIT_PURGE_UNMET];
+        for i in 0..codes.len() {
+            for j in (i + 1)..codes.len() {
+                assert_ne!(codes[i], codes[j], "exit codes must be distinct");
+            }
+        }
+    }
+
+    // ── the create wait verdict rides the state ──
+
+    #[test]
+    fn create_wait_verdicts() {
+        // met: the row is live (active = post-create window, running =
+        // first heartbeat landed, finished = it already walked)
+        assert!(create_wait_met("active"));
+        assert!(create_wait_met("running"));
+        assert!(create_wait_met("finished"));
+        // unmet: still creating at the bound, failed with a reason, or
+        // the workers died (presumed_dead is not the asked-for active)
+        assert!(!create_wait_met("creating"));
+        assert!(!create_wait_met("create-failed"));
+        assert!(!create_wait_met("presumed_dead"));
     }
 }

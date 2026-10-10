@@ -21,6 +21,16 @@ pub struct Systemtender {
     pub config: serde_json::Value,
     #[serde(rename = "createdAt")]
     pub created_at: String,
+    /// Reason the last deletion attempt failed; present only while
+    /// status is deletion-failed (re-DELETE is the retry).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deletion_reason: Option<String>,
+    /// Reason the create executor failed; present only while status
+    /// is create-failed (DELETE clears the row, then retry create).
+    /// Mirrors deletion_reason on the creation axis
+    /// (designs/2026-10-10-async-create-contract.md).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creation_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,6 +101,13 @@ pub struct ApiResponse<T> {
     pub data: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// HTTP status of the response, when one arrived. The async
+    /// contract translates expectations to exit codes: the HTTP
+    /// status says what happened to the REQUEST (409 = name taken,
+    /// 404 = gone), the row state says what happened to the
+    /// systemtender (designs/2026-10-10).
+    #[serde(skip)]
+    pub status: Option<u16>,
 }
 
 impl<T> ApiResponse<T> {
@@ -99,6 +116,7 @@ impl<T> ApiResponse<T> {
             success: true,
             data: Some(data),
             error: None,
+            status: None,
         }
     }
 
@@ -107,8 +125,38 @@ impl<T> ApiResponse<T> {
             success: false,
             data: None,
             error: Some(msg.into()),
+            status: None,
         }
     }
+
+    pub fn with_status(mut self, status: u16) -> Self {
+        self.status = Some(status);
+        self
+    }
+}
+
+// ─── Async contract exit codes (designs/2026-10-10) ────────────────
+// The HTTP status never carries the expectation verdict — the state
+// does; the CLI translates unmet expectations to exit codes so
+// scripts can branch without parsing prose.
+pub const EXIT_OK: i32 = 0;
+/// Transport/parse error (the pre-existing behavior of write_error).
+pub const EXIT_ERROR: i32 = 1;
+/// Create hit a name that already exists, in any state — including
+/// one still `creating` or one that `create-failed` (HTTP 409).
+pub const EXIT_NAME_TAKEN: i32 = 2;
+/// `create --wait` ended with the expectation unmet: the row reads
+/// create-failed, or is still `creating` at the timeout bound.
+pub const EXIT_CREATE_UNMET: i32 = 3;
+/// `purge --wait` ended with the row still present at the timeout
+/// bound (poll GET again, or read the state + deletion_reason).
+pub const EXIT_PURGE_UNMET: i32 = 4;
+
+/// Terminal-for-create from the client's side: the row is live. The
+/// first heartbeat may refine `active` into `running` — both mean
+/// the create landed. `presumed_dead` does not: the workers died.
+pub fn create_wait_met(status: &str) -> bool {
+    matches!(status, "active" | "running" | "finished")
 }
 
 // ─── Steerwishes ────────────────────────────────────────────────────
