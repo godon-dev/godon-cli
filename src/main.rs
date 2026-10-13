@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use godon_cli::{create_wait_met, EXIT_CREATE_UNMET, EXIT_NAME_TAKEN, EXIT_PURGE_UNMET, Steerwish, SteerwishSummary, Systemtender, SystemtenderSummary, Credential, GodonClient, Target};
+use godon_cli::{create_wait_met, EXIT_CREATE_UNMET, EXIT_NAME_TAKEN, EXIT_PURGE_UNMET, Wish, WishSummary, Systemtender, SystemtenderSummary, Credential, GodonClient, Target};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -293,40 +293,40 @@ fn format_systemtender_list(systemtenders: &[SystemtenderSummary]) {
     }
 }
 
-fn format_steerwish_list(steerwishes: &[SteerwishSummary]) {
-    println!("Found {} steerwish(es)", steerwishes.len());
-    for steerwish in steerwishes {
+fn format_wish_list(wishes: &[WishSummary]) {
+    println!("Found {} wish(es)", wishes.len());
+    for wish in wishes {
         // wish-shape freedom: read the aim from either grammar - the first
         // claim (claims + terms) or the top-level outcome (retired N=1
         // shape, still shown for pre-flip records)
-        let aim = steerwish
+        let aim = wish
             .body
             .get("claims")
             .and_then(|c| c.as_array())
             .and_then(|c| c.first())
             .and_then(|c| c.get("outcome"))
             .and_then(|v| v.as_str())
-            .or_else(|| steerwish.body.get("outcome").and_then(|v| v.as_str()))
+            .or_else(|| wish.body.get("outcome").and_then(|v| v.as_str()))
             .unwrap_or("(carried by the body)");
-        println!("  ID: {}", steerwish.id);
+        println!("  ID: {}", wish.id);
         println!("  Outcome: {}", aim);
-        println!("  State: {}", steerwish.state);
-        println!("  Created: {}", steerwish.created_at);
+        println!("  State: {}", wish.state);
+        println!("  Created: {}", wish.created_at);
         println!();
     }
 }
 
-fn format_steerwish(steerwish: &Steerwish) {
-    println!("  ID: {}", steerwish.id);
-    println!("  State: {}", steerwish.state);
-    println!("  Created: {}", steerwish.created_at);
+fn format_wish(wish: &Wish) {
+    println!("  ID: {}", wish.id);
+    println!("  State: {}", wish.state);
+    println!("  Created: {}", wish.created_at);
     // wish-shape freedom: the body is the controller's object - shown
     // verbatim, whatever grammar it carries (today claims + terms)
     println!(
         "  Body: {}",
-        serde_json::to_string_pretty(&steerwish.body).unwrap_or_default()
+        serde_json::to_string_pretty(&wish.body).unwrap_or_default()
     );
-    if let Some(events) = &steerwish.events {
+    if let Some(events) = &wish.events {
         println!("  Events:");
         for event in events {
             match &event.detail {
@@ -452,13 +452,13 @@ async fn main() {
 async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &OutputFormat) {
     match cmd {
         WishCommands::List => {
-            let response = client.list_steerwishes().await;
+            let response = client.list_wishes().await;
             if response.success {
-                if let Some(steerwishes) = response.data {
+                if let Some(wishes) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_steerwish_list(&steerwishes);
+                        format_wish_list(&wishes);
                     } else {
-                        format_output(&steerwishes, output);
+                        format_output(&wishes, output);
                     }
                 }
             } else {
@@ -472,13 +472,13 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
                 Err(e) => write_error(&format!("Failed to read file: {}", e)),
             };
 
-            let response = client.declare_steerwish_from_yaml(&content).await;
+            let response = client.declare_wish_from_yaml(&content).await;
             if response.success {
-                if let Some(steerwish) = response.data {
+                if let Some(wish) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_steerwish(&steerwish);
+                        format_wish(&wish);
                     } else {
-                        format_output(&steerwish, output);
+                        format_output(&wish, output);
                     }
                 }
             } else {
@@ -487,13 +487,13 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
         }
 
         WishCommands::Show { id } => {
-            let response = client.get_steerwish(&id).await;
+            let response = client.get_wish(&id).await;
             if response.success {
-                if let Some(steerwish) = response.data {
+                if let Some(wish) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_steerwish(&steerwish);
+                        format_wish(&wish);
                     } else {
-                        format_output(&steerwish, output);
+                        format_output(&wish, output);
                     }
                 }
             } else {
@@ -512,13 +512,13 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
                 Err(e) => write_error(&format!("Failed to parse wish YAML: {}", e)),
             };
 
-            let response = client.update_steerwish(&id, body).await;
+            let response = client.update_wish(&id, body).await;
             if response.success {
-                if let Some(steerwish) = response.data {
+                if let Some(wish) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_steerwish(&steerwish);
+                        format_wish(&wish);
                     } else {
-                        format_output(&steerwish, output);
+                        format_output(&wish, output);
                     }
                 }
             } else {
@@ -527,7 +527,7 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
         }
 
         WishCommands::Delete { id } => {
-            let response = client.delete_steerwish(&id).await;
+            let response = client.delete_wish(&id).await;
             if response.success {
                 if let Some(result) = response.data {
                     format_output(&result, output);
@@ -538,13 +538,13 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
         }
 
         WishCommands::Close { id } => {
-            let response = client.close_steerwish(&id).await;
+            let response = client.close_wish(&id).await;
             if response.success {
-                if let Some(steerwish) = response.data {
+                if let Some(wish) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        format_steerwish(&steerwish);
+                        format_wish(&wish);
                     } else {
-                        format_output(&steerwish, output);
+                        format_output(&wish, output);
                     }
                 }
             } else {

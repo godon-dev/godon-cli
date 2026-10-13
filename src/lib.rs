@@ -159,14 +159,14 @@ pub fn create_wait_met(status: &str) -> bool {
     matches!(status, "active" | "running" | "finished")
 }
 
-// ─── Steerwishes ────────────────────────────────────────────────────
-// Mirrors images/godon-api/openapi.yml schemas (Steerwish, SteerwishSummary,
-// SteerwishEvent). Wish-shape freedom (2026-09-21): the wish body is the
+// ─── Wishes ────────────────────────────────────────────────────
+// Mirrors images/godon-api/openapi.yml schemas (Wish, WishSummary,
+// WishEvent). Wish-shape freedom (2026-09-21): the wish body is the
 // declarer's own - the CLI carries it verbatim and the controller validates
 // (the door). Only the lifecycle envelope is typed here.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteerwishEvent {
+pub struct WishEvent {
     #[serde(rename = "type")]
     pub kind: String,
     pub at: String,
@@ -175,7 +175,7 @@ pub struct SteerwishEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteerwishSummary {
+pub struct WishSummary {
     pub id: String,
     pub state: String,
     #[serde(rename = "createdAt")]
@@ -185,26 +185,26 @@ pub struct SteerwishSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Steerwish {
+pub struct Wish {
     pub id: String,
     pub state: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub events: Option<Vec<SteerwishEvent>>,
+    pub events: Option<Vec<WishEvent>>,
     #[serde(flatten)]
     pub body: serde_json::Map<String, serde_json::Value>,
 }
 
 #[cfg(test)]
-mod steerwish_tests {
+mod wish_tests {
     use super::*;
 
     // Stub cases, mirroring the openapi examples
-    // (images/godon-api/openapi.yml, schemas Steerwish*).
+    // (images/godon-api/openapi.yml, schemas Wish*).
 
     #[test]
-    fn steerwish_yaml_passthrough_verbatim() {
+    fn wish_yaml_passthrough_verbatim() {
         // wish-shape freedom: unknown/claim-shaped fields survive the
         // YAML -> JSON hop untouched - the controller validates (the door)
         let yaml = r#"
@@ -225,7 +225,7 @@ claims:
     }
 
     #[test]
-    fn steerwish_envelope_keeps_body_verbatim() {
+    fn wish_envelope_keeps_body_verbatim() {
         let json = r#"{
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "outcome": "chainend.shift",
@@ -233,14 +233,14 @@ claims:
             "state": "declared",
             "createdAt": "2026-09-10T10:30:00Z"
         }"#;
-        let wish: Steerwish = serde_json::from_str(json).expect("parse");
+        let wish: Wish = serde_json::from_str(json).expect("parse");
         assert_eq!(wish.state, "declared");
         assert_eq!(wish.body.get("outcome").and_then(|v| v.as_str()), Some("chainend.shift"));
         assert_eq!(wish.body["band"]["lo"], -0.14);
     }
 
     #[test]
-    fn steerwish_with_events_parses() {
+    fn wish_with_events_parses() {
         let json = r#"{
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "outcome": "chainend.shift",
@@ -254,7 +254,7 @@ claims:
                  "detail": "target outside measured range"}
             ]
         }"#;
-        let wish: Steerwish = serde_json::from_str(json).expect("parse");
+        let wish: Wish = serde_json::from_str(json).expect("parse");
         assert_eq!(wish.state, "declared");
         let events = wish.events.as_ref().unwrap();
         assert_eq!(events.len(), 2);
@@ -267,14 +267,14 @@ claims:
     }
 
     #[test]
-    fn steerwish_summary_parses_without_band() {
+    fn wish_summary_parses_without_band() {
         let json = r#"{
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "outcome": "chainend.shift",
             "state": "planned",
             "createdAt": "2026-09-10T10:30:00Z"
         }"#;
-        let summary: SteerwishSummary = serde_json::from_str(json).expect("parse");
+        let summary: WishSummary = serde_json::from_str(json).expect("parse");
         assert_eq!(summary.state, "planned");
         assert_eq!(summary.created_at, "2026-09-10T10:30:00Z");
     }

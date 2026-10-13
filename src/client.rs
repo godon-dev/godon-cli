@@ -1,4 +1,4 @@
-use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target, Steerwish, SteerwishSummary};
+use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target, Wish, WishSummary};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use std::time::Duration;
@@ -240,10 +240,10 @@ impl GodonClient {
         }
     }
 
-    // ─── Steerwishes ────────────────────────────────────────────────
+    // ─── Wishes ────────────────────────────────────────────────
 
-    pub async fn list_steerwishes(&self) -> ApiResponse<Vec<SteerwishSummary>> {
-        let url = format!("{}/steerwishes", self.base_url());
+    pub async fn list_wishes(&self) -> ApiResponse<Vec<WishSummary>> {
+        let url = format!("{}/wishes", self.base_url());
 
         match self.client.get(&url).send().await {
             Ok(response) => self.handle_response(response).await,
@@ -251,10 +251,10 @@ impl GodonClient {
         }
     }
 
-    pub async fn declare_steerwish(&self, wish: serde_json::Value) -> ApiResponse<Steerwish> {
+    pub async fn declare_wish(&self, wish: serde_json::Value) -> ApiResponse<Wish> {
         // wish-shape freedom: the body is the declarer's own, forwarded
         // verbatim - the controller validates the grammar (the door)
-        let url = format!("{}/steerwishes", self.base_url());
+        let url = format!("{}/wishes", self.base_url());
 
         if self.debug {
             eprintln!("Sending JSON: {}", serde_json::to_string_pretty(&wish).unwrap_or_default());
@@ -271,7 +271,7 @@ impl GodonClient {
         }
     }
 
-    pub async fn declare_steerwish_from_yaml(&self, yaml_content: &str) -> ApiResponse<Steerwish> {
+    pub async fn declare_wish_from_yaml(&self, yaml_content: &str) -> ApiResponse<Wish> {
         let parsed: serde_yaml::Value = match serde_yaml::from_str(yaml_content) {
             Ok(w) => w,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
@@ -281,11 +281,11 @@ impl GodonClient {
             Err(e) => return ApiResponse::error(format!("YAML to JSON error: {}", e)),
         };
 
-        self.declare_steerwish(wish).await
+        self.declare_wish(wish).await
     }
 
-    pub async fn get_steerwish(&self, wish_id: &str) -> ApiResponse<Steerwish> {
-        let url = format!("{}/steerwishes/{}", self.base_url(), wish_id);
+    pub async fn get_wish(&self, wish_id: &str) -> ApiResponse<Wish> {
+        let url = format!("{}/wishes/{}", self.base_url(), wish_id);
 
         match self.client.get(&url).send().await {
             Ok(response) => self.handle_response(response).await,
@@ -293,8 +293,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn close_steerwish(&self, wish_id: &str) -> ApiResponse<Steerwish> {
-        let url = format!("{}/steerwishes/{}/close", self.base_url(), wish_id);
+    pub async fn close_wish(&self, wish_id: &str) -> ApiResponse<Wish> {
+        let url = format!("{}/wishes/{}/close", self.base_url(), wish_id);
 
         match self.client.post(&url).send().await {
             Ok(response) => self.handle_response(response).await,
@@ -302,8 +302,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn update_steerwish(&self, wish_id: &str, body: serde_json::Value) -> ApiResponse<Steerwish> {
-        let url = format!("{}/steerwishes/{}/update", self.base_url(), wish_id);
+    pub async fn update_wish(&self, wish_id: &str, body: serde_json::Value) -> ApiResponse<Wish> {
+        let url = format!("{}/wishes/{}/update", self.base_url(), wish_id);
 
         match self.client.post(&url).json(&body).send().await {
             Ok(response) => self.handle_response(response).await,
@@ -311,8 +311,8 @@ impl GodonClient {
         }
     }
 
-    pub async fn delete_steerwish(&self, wish_id: &str) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/steerwishes/{}", self.base_url(), wish_id);
+    pub async fn delete_wish(&self, wish_id: &str) -> ApiResponse<serde_json::Value> {
+        let url = format!("{}/wishes/{}", self.base_url(), wish_id);
 
         match self.client.delete(&url).send().await {
             Ok(response) => self.handle_response(response).await,
