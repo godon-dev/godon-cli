@@ -1,13 +1,13 @@
 # Godon CLI
 
-A Rust-based CLI tool for controlling and managing the Godon optimizer systemtenders via the Godon Control API.
+A Rust-based CLI tool for managing godon systemtenders via the godon control API.
 
 ## Features
 
 - **Systemtender Management**: List, create, show, update, and delete systemtender configurations
 - **Credential Management**: Store and manage SSH keys, API tokens, and other sensitive data
-- **Target Management**: Define and manage target hosts for optimization runs
-- **Wish Management**: Declare, list, show, and close wishes - declared outcomes (with band, guardrails, and regime) the system holds and tends
+- **Target Management**: Define and manage the target hosts systemtenders tend
+- **Wish Management**: Declare, list, show, and close wishes - either an outcome to hold (steer) or a commissioned measured walk (seek)
 - **YAML-based Configuration**: Simple YAML files for systemtenders, credentials, targets, and wishes
 - **RESTful API Integration**: Communicates with the Godon Control API
 - **Cross-platform Support**: Currently Linux x86_64, extensible to other platforms
@@ -136,25 +136,43 @@ godon_cli systemtender purge --id 550e8400-e29b-41d4-a716-446655440000
 
 ### Wish Management
 
-A wish is a declared outcome the system holds and tends: one measured
-value, a band, guardrails, and (optionally) a rescue budget. Omitted budget
-means upkeep indefinitely; omitted regime means standing.
+A wish is declared intent, and its file states the type. A steer wish
+holds one or more measured outcomes in their bands, under optional
+terms, guardrails, and (optionally) a rescue budget. A seek wish
+commissions a measured walk over a region of dials.
 
 #### Declare a Wish
 
-Create a wish file `wish.yaml`:
+Create a wish file `wish.yaml` - a steer wish, holding the chain-end
+shift at -0.10:
 
 ```yaml
-outcome: "chainend.shift"
-band:
-  lo: -0.14
-  hi: -0.06
-  target: -0.10    # receipt and reporting only - the judge needs only the band
+type: steer        # the grammar: steer = an outcome to hold
+claims:
+  - outcome: "chainend.shift"
+    band:
+      lo: -0.14
+      hi: -0.06
+      target: -0.10
 limits:
   exclude: []      # param names that may not be moved at all
   maxChange: 0.5   # no input ends further than half its range from neutral
 budget: 2          # re-acts after drift; omit for unbounded upkeep
-regime: standing   # the only regime today
+regime: standing   # the only closing rule today
+```
+
+Or a seek wish - find the setting that minimizes the chain-end shift,
+with a budget of measured trials:
+
+```yaml
+type: seek                     # the grammar: seek = a commissioned walk
+form: find_best                # find_best searches; cover_now walks to extend coverage
+region:
+  chainend.push: [-0.4, 0.4]   # the dials to walk, each [lo, hi]
+criterion:
+  outcome: "chainend.shift"    # what counts: the reading
+  direction: minimize          # ... and the direction
+budget: 12                     # measured trials the walk may spend
 ```
 
 Then declare it:
