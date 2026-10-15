@@ -320,6 +320,19 @@ impl GodonClient {
         }
     }
 
+    // ─── Positions ──────────────────────────────────────────────
+
+    pub async fn get_positions(&self) -> ApiResponse<serde_json::Value> {
+        // the standing picture is the door's own object - rows as they
+        // stand, derived fresh on every read; shown, not reshaped
+        let url = format!("{}/positions", self.base_url());
+
+        match self.client.get(&url).send().await {
+            Ok(response) => self.handle_response(response).await,
+            Err(e) => ApiResponse::error(e.to_string()),
+        }
+    }
+
     pub async fn list_credentials(&self) -> ApiResponse<Vec<Credential>> {
         let url = format!("{}/credentials", self.base_url());
         
