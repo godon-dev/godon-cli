@@ -54,6 +54,9 @@ enum Commands {
         #[command(subcommand)]
         subcommand: WishCommands,
     },
+
+    /// The standing positions - every live wish's place on the dials
+    Positions,
 }
 
 #[derive(Subcommand)]
@@ -293,6 +296,55 @@ fn format_systemtender_list(systemtenders: &[SystemtenderSummary]) {
     }
 }
 
+async fn handle_positions_command(client: &GodonClient, output: &OutputFormat) {
+    let response = client.get_positions().await;
+    if response.success {
+        match (&response.data, output) {
+            (Some(data), OutputFormat::Text) => format_positions(&data),
+            (Some(data), _) => format_output(&data, output),
+            _ => {}
+        }
+    } else {
+        write_error(response.error.as_deref().unwrap_or("Unknown error"));
+    }
+}
+
+fn format_positions(body: &serde_json::Value) {
+    // three row kinds and no more (held, measuring, orphaned) - the
+    // door's object, printed as it stands
+    let rows = body
+        .get("positions")
+        .and_then(|p| p.as_array())
+        .cloned()
+        .unwrap_or_default();
+    println!("Found {} position(s)", rows.len());
+    for row in &rows {
+        let kind = row.get("kind").and_then(|v| v.as_str()).unwrap_or("?");
+        let wish = row.get("wish").and_then(|v| v.as_str()).unwrap_or("?");
+        let status = row.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+        let sender = row
+            .get("setting")
+            .and_then(|s| s.get("sender"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let param = row
+            .get("setting")
+            .and_then(|s| s.get("param"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        println!("  Kind: {} | Wish: {}", kind, wish);
+        println!("  Status: {} | Setting: {}.{}", status, sender, param);
+        // a seek carries its walked window; a hold carries level and bands
+        if let Some(window) = row.get("window") {
+            println!("  Window: {}", window);
+        }
+        if let Some(level) = row.get("level") {
+            println!("  Level: {}", level);
+        }
+        println!();
+    }
+}
+
 fn format_wish_list(wishes: &[WishSummary]) {
     println!("Found {} wish(es)", wishes.len());
     for wish in wishes {
@@ -309,6 +361,18 @@ fn format_wish_list(wishes: &[WishSummary]) {
             .or_else(|| wish.body.get("outcome").and_then(|v| v.as_str()))
             .unwrap_or("(carried by the body)");
         println!("  ID: {}", wish.id);
+        // the dialect, both stated: the body's type, and the walk's
+        // form when the body is a seek
+        let grammar = wish
+            .body
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("(type unstated)");
+        let grammar = match wish.body.get("form").and_then(|v| v.as_str()) {
+            Some(form) => format!("{} ({})", grammar, form),
+            None => grammar.to_string(),
+        };
+        println!("  Type: {}", grammar);
         println!("  Outcome: {}", aim);
         println!("  State: {}", wish.state);
         println!("  Created: {}", wish.created_at);
@@ -318,6 +382,17 @@ fn format_wish_list(wishes: &[WishSummary]) {
 
 fn format_wish(wish: &Wish) {
     println!("  ID: {}", wish.id);
+    // the dialect, both stated (a seek carries its form)
+    let grammar = wish
+        .body
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("(type unstated)");
+    let grammar = match wish.body.get("form").and_then(|v| v.as_str()) {
+        Some(form) => format!("{} ({})", grammar, form),
+        None => grammar.to_string(),
+    };
+    println!("  Type: {}", grammar);
     println!("  State: {}", wish.state);
     println!("  Created: {}", wish.created_at);
     // wish-shape freedom: the body is the controller's object - shown
@@ -446,6 +521,7 @@ async fn main() {
         Commands::Credential { subcommand } => handle_credential_command(&client, subcommand, &cli.output).await,
         Commands::Target { subcommand } => handle_target_command(&client, subcommand, &cli.output).await,
         Commands::Wish { subcommand } => handle_wish_command(&client, subcommand, &cli.output).await,
+        Commands::Positions => handle_positions_command(&client, &cli.output).await,
     }
 }
 
