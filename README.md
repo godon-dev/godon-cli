@@ -187,17 +187,35 @@ godon_cli wish declare --file wish.yaml
 godon_cli wish list
 ```
 
+Each row states the body's type — and the walk's form when the body is
+a seek. Both stated, never omitted.
+
 #### Show a Wish (with full event history)
 
 ```bash
 godon_cli wish show --id 550e8400-e29b-41d4-a716-446655440000
 ```
 
+The body prints verbatim, type and form included.
+
 #### Close a Wish
 
 ```bash
 godon_cli wish close --id 550e8400-e29b-41d4-a716-446655440000
 ```
+
+### Positions
+
+The standing picture — every live wish's place on the dials, read
+fresh from the door:
+
+```bash
+godon_cli positions
+```
+
+Rows come in three kinds and no more: `held` (a hold's level and
+bands), `measuring` (a search's walked window), `orphaned` (a dead
+holder's history). The view is derived on every read, never stored.
 
 ### Credential Management
 
