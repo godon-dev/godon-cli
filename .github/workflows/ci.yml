@@ -3,9 +3,14 @@ name: build_and_test_godon_cli
 on:
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    # weekly, Monday 04:00 UTC — after the controller run
+    - cron: '0 4 * * 1'
 
 jobs:
   build:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -438,3 +443,27 @@ jobs:
       run: |
         docker stop prism || true
         docker rm prism || true
+
+  mutants:
+    if: github.event_name != 'pull_request'
+    name: cargo mutants (cli)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+
+      - name: Baseline (the suite must be green before breaking it)
+        run: cargo test --quiet
+
+      - name: cargo mutants
+        run: cargo mutants --output mutants.out
+
+      - name: Upload outcomes
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-outcomes
+          path: mutants.out/
