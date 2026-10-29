@@ -235,7 +235,10 @@ claims:
         }"#;
         let wish: Wish = serde_json::from_str(json).expect("parse");
         assert_eq!(wish.state, "declared");
-        assert_eq!(wish.body.get("outcome").and_then(|v| v.as_str()), Some("chainend.shift"));
+        assert_eq!(
+            wish.body.get("outcome").and_then(|v| v.as_str()),
+            Some("chainend.shift")
+        );
         assert_eq!(wish.body["band"]["lo"], -0.14);
     }
 
