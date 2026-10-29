@@ -1,4 +1,7 @@
-use crate::{ApiConfig, ApiResponse, Systemtender, SystemtenderCreateRequest, SystemtenderSummary, SystemtenderUpdateRequest, Credential, Target, Wish, WishSummary};
+use crate::{
+    ApiConfig, ApiResponse, Credential, Systemtender, SystemtenderCreateRequest,
+    SystemtenderSummary, SystemtenderUpdateRequest, Target, Wish, WishSummary,
+};
 use anyhow::{Context, Result};
 use reqwest::Client;
 use std::time::Duration;
@@ -10,19 +13,23 @@ pub struct GodonClient {
 }
 
 impl GodonClient {
-    pub fn new(hostname: String, port: u16, api_version: String, insecure: bool, debug: bool) -> Result<Self> {
+    pub fn new(
+        hostname: String,
+        port: u16,
+        api_version: String,
+        insecure: bool,
+        debug: bool,
+    ) -> Result<Self> {
         // 90s default (designs/2026-10-10): enough headroom for bare
         // creates and slow lists; wait modes set their own per-request
         // budget (server bound + 30).
-        let mut builder = Client::builder()
-            .timeout(Duration::from_secs(90));
+        let mut builder = Client::builder().timeout(Duration::from_secs(90));
 
         if insecure {
             builder = builder.danger_accept_invalid_certs(true);
         }
 
-        let client = builder.build()
-            .context("Failed to create HTTP client")?;
+        let client = builder.build().context("Failed to create HTTP client")?;
 
         Ok(Self {
             config: ApiConfig {
@@ -38,29 +45,32 @@ impl GodonClient {
     fn base_url(&self) -> String {
         let scheme = if self.config.hostname.starts_with("https://") {
             "https"
-        } else if self.config.hostname.starts_with("http://") {
-            "http"
         } else {
             "http"
         };
 
-        let clean_host = self.config.hostname
+        let clean_host = self
+            .config
+            .hostname
             .trim_start_matches("https://")
             .trim_start_matches("http://");
 
         format!("{}://{}:{}", scheme, clean_host, self.config.port)
     }
 
-    async fn handle_response<T: serde::de::DeserializeOwned>(&self, response: reqwest::Response) -> ApiResponse<T> {
+    async fn handle_response<T: serde::de::DeserializeOwned>(
+        &self,
+        response: reqwest::Response,
+    ) -> ApiResponse<T> {
         let status = response.status();
-        
+
         if status.is_success() {
             match response.text().await {
                 Ok(body) => {
                     if self.debug {
                         eprintln!("Raw response body: {}", body);
                     }
-                    
+
                     if body.is_empty() {
                         return ApiResponse::error("Empty response body");
                     }
@@ -71,7 +81,8 @@ impl GodonClient {
                             if self.debug {
                                 eprintln!("JSON parse error: {}", e);
                             }
-                            ApiResponse::error(format!("JSON parse error: {}", e)).with_status(status.as_u16())
+                            ApiResponse::error(format!("JSON parse error: {}", e))
+                                .with_status(status.as_u16())
                         }
                     }
                 }
@@ -83,7 +94,7 @@ impl GodonClient {
                     if self.debug {
                         eprintln!("HTTP Error Response Body: {}", body);
                     }
-                    
+
                     let error_msg = serde_json::from_str::<serde_json::Value>(&body)
                         .ok()
                         .and_then(|v| v.get("message").and_then(|m| m.as_str()).map(String::from))
@@ -98,32 +109,37 @@ impl GodonClient {
 
     pub async fn list_systemtenders(&self) -> ApiResponse<Vec<SystemtenderSummary>> {
         let url = format!("{}/systemtenders", self.base_url());
-        
+
         match self.client.get(&url).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
         }
     }
 
-    pub async fn create_systemtender(&self, request: SystemtenderCreateRequest) -> ApiResponse<SystemtenderSummary> {
+    pub async fn create_systemtender(
+        &self,
+        request: SystemtenderCreateRequest,
+    ) -> ApiResponse<SystemtenderSummary> {
         let url = format!("{}/systemtenders", self.base_url());
-        
+
         if self.debug {
-            eprintln!("Sending JSON: {}", serde_json::to_string_pretty(&request).unwrap_or_default());
+            eprintln!(
+                "Sending JSON: {}",
+                serde_json::to_string_pretty(&request).unwrap_or_default()
+            );
         }
 
-        match self.client
-            .post(&url)
-            .json(&request)
-            .send()
-            .await
-        {
+        match self.client.post(&url).json(&request).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
         }
     }
 
-    pub async fn create_systemtender_from_yaml(&self, yaml_content: &str, name: &str) -> ApiResponse<SystemtenderSummary> {
+    pub async fn create_systemtender_from_yaml(
+        &self,
+        yaml_content: &str,
+        name: &str,
+    ) -> ApiResponse<SystemtenderSummary> {
         let config: serde_json::Value = match serde_yaml::from_str(yaml_content) {
             Ok(c) => c,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
@@ -143,7 +159,12 @@ impl GodonClient {
     /// dangling connection. Returns the full row (Systemtender), whose
     /// status carries the verdict; a name clash answers 409 + the
     /// existing row's message.
-    pub async fn create_systemtender_from_yaml_wait(&self, yaml_content: &str, name: &str, timeout_secs: u64) -> ApiResponse<Systemtender> {
+    pub async fn create_systemtender_from_yaml_wait(
+        &self,
+        yaml_content: &str,
+        name: &str,
+        timeout_secs: u64,
+    ) -> ApiResponse<Systemtender> {
         let config: serde_json::Value = match serde_yaml::from_str(yaml_content) {
             Ok(c) => c,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
@@ -156,10 +177,14 @@ impl GodonClient {
         };
 
         if self.debug {
-            eprintln!("Sending JSON: {}", serde_json::to_string_pretty(&request).unwrap_or_default());
+            eprintln!(
+                "Sending JSON: {}",
+                serde_json::to_string_pretty(&request).unwrap_or_default()
+            );
         }
 
-        match self.client
+        match self
+            .client
             .post(&url)
             .query(&[("wait", "active"), ("timeout", &timeout_secs.to_string())])
             .timeout(Duration::from_secs(timeout_secs + 30))
@@ -173,29 +198,41 @@ impl GodonClient {
     }
 
     pub async fn get_systemtender(&self, uuid: &str) -> ApiResponse<Systemtender> {
-        let url = format!("{}/systemtenders/{}", self.base_url(), urlencoding::encode(uuid));
-        
+        let url = format!(
+            "{}/systemtenders/{}",
+            self.base_url(),
+            urlencoding::encode(uuid)
+        );
+
         match self.client.get(&url).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
         }
     }
 
-    pub async fn update_systemtender(&self, uuid: &str, request: SystemtenderUpdateRequest) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/systemtenders/{}", self.base_url(), urlencoding::encode(uuid));
+    pub async fn update_systemtender(
+        &self,
+        uuid: &str,
+        request: SystemtenderUpdateRequest,
+    ) -> ApiResponse<serde_json::Value> {
+        let url = format!(
+            "{}/systemtenders/{}",
+            self.base_url(),
+            urlencoding::encode(uuid)
+        );
 
-        match self.client
-            .put(&url)
-            .json(&request)
-            .send()
-            .await
-        {
+        match self.client.put(&url).json(&request).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
         }
     }
 
-    pub async fn update_systemtender_from_yaml(&self, uuid: &str, yaml_content: &str, force: bool) -> ApiResponse<serde_json::Value> {
+    pub async fn update_systemtender_from_yaml(
+        &self,
+        uuid: &str,
+        yaml_content: &str,
+        force: bool,
+    ) -> ApiResponse<serde_json::Value> {
         let config: serde_json::Value = match serde_yaml::from_str(yaml_content) {
             Ok(c) => c,
             Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
@@ -209,9 +246,17 @@ impl GodonClient {
         self.update_systemtender(uuid, request).await
     }
 
-    pub async fn delete_systemtender(&self, uuid: &str, force: bool) -> ApiResponse<serde_json::Value> {
-        let mut url = format!("{}/systemtenders/{}", self.base_url(), urlencoding::encode(uuid));
-        
+    pub async fn delete_systemtender(
+        &self,
+        uuid: &str,
+        force: bool,
+    ) -> ApiResponse<serde_json::Value> {
+        let mut url = format!(
+            "{}/systemtenders/{}",
+            self.base_url(),
+            urlencoding::encode(uuid)
+        );
+
         if force {
             url.push_str("?force=true");
         }
@@ -223,8 +268,12 @@ impl GodonClient {
     }
 
     pub async fn stop_systemtender(&self, uuid: &str) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/systemtenders/{}/stop", self.base_url(), urlencoding::encode(uuid));
-        
+        let url = format!(
+            "{}/systemtenders/{}/stop",
+            self.base_url(),
+            urlencoding::encode(uuid)
+        );
+
         match self.client.post(&url).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
@@ -232,8 +281,12 @@ impl GodonClient {
     }
 
     pub async fn start_systemtender(&self, uuid: &str) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/systemtenders/{}/start", self.base_url(), urlencoding::encode(uuid));
-        
+        let url = format!(
+            "{}/systemtenders/{}/start",
+            self.base_url(),
+            urlencoding::encode(uuid)
+        );
+
         match self.client.post(&url).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
@@ -257,15 +310,13 @@ impl GodonClient {
         let url = format!("{}/wishes", self.base_url());
 
         if self.debug {
-            eprintln!("Sending JSON: {}", serde_json::to_string_pretty(&wish).unwrap_or_default());
+            eprintln!(
+                "Sending JSON: {}",
+                serde_json::to_string_pretty(&wish).unwrap_or_default()
+            );
         }
 
-        match self.client
-            .post(&url)
-            .json(&wish)
-            .send()
-            .await
-        {
+        match self.client.post(&url).json(&wish).send().await {
             Ok(response) => self.handle_response(response).await,
             Err(e) => ApiResponse::error(e.to_string()),
         }
@@ -335,28 +386,34 @@ impl GodonClient {
 
     pub async fn list_credentials(&self) -> ApiResponse<Vec<Credential>> {
         let url = format!("{}/credentials", self.base_url());
-        
+
         match self.client.get(&url).send().await {
             Ok(response) => {
                 let status = response.status();
-                
+
                 if status.is_success() {
                     match response.text().await {
                         Ok(body) => {
                             let json: serde_json::Value = match serde_json::from_str(&body) {
                                 Ok(j) => j,
-                                Err(e) => return ApiResponse::error(format!("JSON parse error: {}", e)),
+                                Err(e) => {
+                                    return ApiResponse::error(format!("JSON parse error: {}", e))
+                                }
                             };
 
                             let credentials: Vec<Credential> = if json.is_array() {
                                 match serde_json::from_value(json) {
                                     Ok(c) => c,
-                                    Err(e) => return ApiResponse::error(format!("Parse error: {}", e)),
+                                    Err(e) => {
+                                        return ApiResponse::error(format!("Parse error: {}", e))
+                                    }
                                 }
                             } else if let Some(arr) = json.get("credentials") {
                                 match serde_json::from_value(arr.clone()) {
                                     Ok(c) => c,
-                                    Err(e) => return ApiResponse::error(format!("Parse error: {}", e)),
+                                    Err(e) => {
+                                        return ApiResponse::error(format!("Parse error: {}", e))
+                                    }
                                 }
                             } else {
                                 return ApiResponse::error("Unexpected response format");
@@ -374,26 +431,22 @@ impl GodonClient {
         }
     }
 
-    pub async fn create_credential(&self, credential_data: serde_json::Value) -> ApiResponse<Credential> {
+    pub async fn create_credential(
+        &self,
+        credential_data: serde_json::Value,
+    ) -> ApiResponse<Credential> {
         let url = format!("{}/credentials", self.base_url());
-        
-        match self.client
-            .post(&url)
-            .json(&credential_data)
-            .send()
-            .await
-        {
+
+        match self.client.post(&url).json(&credential_data).send().await {
             Ok(response) => {
                 let status = response.status();
-                
+
                 if status.is_success() {
                     match response.text().await {
-                        Ok(body) => {
-                            match serde_json::from_str::<Credential>(&body) {
-                                Ok(cred) => ApiResponse::success(cred),
-                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
-                            }
-                        }
+                        Ok(body) => match serde_json::from_str::<Credential>(&body) {
+                            Ok(cred) => ApiResponse::success(cred),
+                            Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                        },
                         Err(e) => ApiResponse::error(e.to_string()),
                     }
                 } else {
@@ -405,20 +458,22 @@ impl GodonClient {
     }
 
     pub async fn get_credential(&self, credential_id: &str) -> ApiResponse<Credential> {
-        let url = format!("{}/credentials/{}", self.base_url(), urlencoding::encode(credential_id));
-        
+        let url = format!(
+            "{}/credentials/{}",
+            self.base_url(),
+            urlencoding::encode(credential_id)
+        );
+
         match self.client.get(&url).send().await {
             Ok(response) => {
                 let status = response.status();
-                
+
                 if status.is_success() {
                     match response.text().await {
-                        Ok(body) => {
-                            match serde_json::from_str::<Credential>(&body) {
-                                Ok(cred) => ApiResponse::success(cred),
-                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
-                            }
-                        }
+                        Ok(body) => match serde_json::from_str::<Credential>(&body) {
+                            Ok(cred) => ApiResponse::success(cred),
+                            Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                        },
                         Err(e) => ApiResponse::error(e.to_string()),
                     }
                 } else {
@@ -430,20 +485,22 @@ impl GodonClient {
     }
 
     pub async fn delete_credential(&self, credential_id: &str) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/credentials/{}", self.base_url(), urlencoding::encode(credential_id));
-        
+        let url = format!(
+            "{}/credentials/{}",
+            self.base_url(),
+            urlencoding::encode(credential_id)
+        );
+
         match self.client.delete(&url).send().await {
             Ok(response) => {
                 let status = response.status();
-                
+
                 if status.is_success() {
                     match response.text().await {
-                        Ok(body) => {
-                            match serde_json::from_str(&body) {
-                                Ok(v) => ApiResponse::success(v),
-                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
-                            }
-                        }
+                        Ok(body) => match serde_json::from_str(&body) {
+                            Ok(v) => ApiResponse::success(v),
+                            Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                        },
                         Err(e) => ApiResponse::error(e.to_string()),
                     }
                 } else {
@@ -455,10 +512,11 @@ impl GodonClient {
     }
 
     pub async fn create_credential_from_yaml(&self, yaml_content: &str) -> ApiResponse<Credential> {
-        let yaml_data: std::collections::HashMap<String, String> = match serde_yaml::from_str(yaml_content) {
-            Ok(d) => d,
-            Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
-        };
+        let yaml_data: std::collections::HashMap<String, String> =
+            match serde_yaml::from_str(yaml_content) {
+                Ok(d) => d,
+                Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
+            };
 
         let name = match yaml_data.get("name") {
             Some(n) => n.clone(),
@@ -499,18 +557,24 @@ impl GodonClient {
                         Ok(body) => {
                             let json: serde_json::Value = match serde_json::from_str(&body) {
                                 Ok(j) => j,
-                                Err(e) => return ApiResponse::error(format!("JSON parse error: {}", e)),
+                                Err(e) => {
+                                    return ApiResponse::error(format!("JSON parse error: {}", e))
+                                }
                             };
 
                             let targets: Vec<Target> = if json.is_array() {
                                 match serde_json::from_value(json) {
                                     Ok(t) => t,
-                                    Err(e) => return ApiResponse::error(format!("Parse error: {}", e)),
+                                    Err(e) => {
+                                        return ApiResponse::error(format!("Parse error: {}", e))
+                                    }
                                 }
                             } else if let Some(arr) = json.get("targets") {
                                 match serde_json::from_value(arr.clone()) {
                                     Ok(t) => t,
-                                    Err(e) => return ApiResponse::error(format!("Parse error: {}", e)),
+                                    Err(e) => {
+                                        return ApiResponse::error(format!("Parse error: {}", e))
+                                    }
                                 }
                             } else {
                                 return ApiResponse::error("Unexpected response format");
@@ -531,23 +595,16 @@ impl GodonClient {
     pub async fn create_target(&self, target_data: serde_json::Value) -> ApiResponse<Target> {
         let url = format!("{}/targets", self.base_url());
 
-        match self.client
-            .post(&url)
-            .json(&target_data)
-            .send()
-            .await
-        {
+        match self.client.post(&url).json(&target_data).send().await {
             Ok(response) => {
                 let status = response.status();
 
                 if status.is_success() {
                     match response.text().await {
-                        Ok(body) => {
-                            match serde_json::from_str::<Target>(&body) {
-                                Ok(target) => ApiResponse::success(target),
-                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
-                            }
-                        }
+                        Ok(body) => match serde_json::from_str::<Target>(&body) {
+                            Ok(target) => ApiResponse::success(target),
+                            Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                        },
                         Err(e) => ApiResponse::error(e.to_string()),
                     }
                 } else {
@@ -559,7 +616,11 @@ impl GodonClient {
     }
 
     pub async fn get_target(&self, target_id: &str) -> ApiResponse<Target> {
-        let url = format!("{}/targets/{}", self.base_url(), urlencoding::encode(target_id));
+        let url = format!(
+            "{}/targets/{}",
+            self.base_url(),
+            urlencoding::encode(target_id)
+        );
 
         match self.client.get(&url).send().await {
             Ok(response) => {
@@ -567,12 +628,10 @@ impl GodonClient {
 
                 if status.is_success() {
                     match response.text().await {
-                        Ok(body) => {
-                            match serde_json::from_str::<Target>(&body) {
-                                Ok(target) => ApiResponse::success(target),
-                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
-                            }
-                        }
+                        Ok(body) => match serde_json::from_str::<Target>(&body) {
+                            Ok(target) => ApiResponse::success(target),
+                            Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                        },
                         Err(e) => ApiResponse::error(e.to_string()),
                     }
                 } else {
@@ -584,7 +643,11 @@ impl GodonClient {
     }
 
     pub async fn delete_target(&self, target_id: &str) -> ApiResponse<serde_json::Value> {
-        let url = format!("{}/targets/{}", self.base_url(), urlencoding::encode(target_id));
+        let url = format!(
+            "{}/targets/{}",
+            self.base_url(),
+            urlencoding::encode(target_id)
+        );
 
         match self.client.delete(&url).send().await {
             Ok(response) => {
@@ -592,12 +655,10 @@ impl GodonClient {
 
                 if status.is_success() {
                     match response.text().await {
-                        Ok(body) => {
-                            match serde_json::from_str(&body) {
-                                Ok(v) => ApiResponse::success(v),
-                                Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
-                            }
-                        }
+                        Ok(body) => match serde_json::from_str(&body) {
+                            Ok(v) => ApiResponse::success(v),
+                            Err(e) => ApiResponse::error(format!("Parse error: {}", e)),
+                        },
                         Err(e) => ApiResponse::error(e.to_string()),
                     }
                 } else {
@@ -609,10 +670,11 @@ impl GodonClient {
     }
 
     pub async fn create_target_from_yaml(&self, yaml_content: &str) -> ApiResponse<Target> {
-        let yaml_data: std::collections::HashMap<String, serde_yaml::Value> = match serde_yaml::from_str(yaml_content) {
-            Ok(d) => d,
-            Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
-        };
+        let yaml_data: std::collections::HashMap<String, serde_yaml::Value> =
+            match serde_yaml::from_str(yaml_content) {
+                Ok(d) => d,
+                Err(e) => return ApiResponse::error(format!("YAML parse error: {}", e)),
+            };
 
         let name = match yaml_data.get("name").and_then(|v| v.as_str()) {
             Some(n) => n.to_string(),
@@ -636,7 +698,8 @@ impl GodonClient {
         });
 
         if let Some(m) = yaml_data.get("metadata") {
-            target_data["metadata"] = serde_json::to_value(m).unwrap_or_else(|_| serde_json::json!({}));
+            target_data["metadata"] =
+                serde_json::to_value(m).unwrap_or_else(|_| serde_json::json!({}));
         }
 
         self.create_target(target_data).await

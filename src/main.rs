@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
-use godon_cli::{create_wait_met, EXIT_CREATE_UNMET, EXIT_NAME_TAKEN, EXIT_PURGE_UNMET, Wish, WishSummary, Systemtender, SystemtenderSummary, Credential, GodonClient, Target};
+use godon_cli::{
+    create_wait_met, Credential, GodonClient, Systemtender, SystemtenderSummary, Target, Wish,
+    WishSummary, EXIT_CREATE_UNMET, EXIT_NAME_TAKEN, EXIT_PURGE_UNMET,
+};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -300,7 +303,7 @@ async fn handle_positions_command(client: &GodonClient, output: &OutputFormat) {
     let response = client.get_positions().await;
     if response.success {
         match (&response.data, output) {
-            (Some(data), OutputFormat::Text) => format_positions(&data),
+            (Some(data), OutputFormat::Text) => format_positions(data),
             (Some(data), _) => format_output(&data, output),
             _ => {}
         }
@@ -417,10 +420,14 @@ fn format_systemtender(systemtender: &Systemtender) {
     println!("  ID: {}", systemtender.id);
     println!("  Name: {}", systemtender.name);
     println!("  Status: {}", systemtender.status);
-    println!("  Config: {}", serde_json::to_string_pretty(&systemtender.config).unwrap_or_default());
+    println!(
+        "  Config: {}",
+        serde_json::to_string_pretty(&systemtender.config).unwrap_or_default()
+    );
     println!("  Created: {}", systemtender.created_at);
 }
 
+#[allow(dead_code)]
 fn format_systemtender_summary(systemtender: &SystemtenderSummary) {
     println!("Systemtender created successfully:");
     println!("  ID: {}", systemtender.id);
@@ -434,9 +441,15 @@ fn format_credential_list(credentials: &[Credential]) {
         println!("  ID: {}", credential.id);
         println!("  Name: {}", credential.name);
         println!("  Type: {}", credential.credential_type);
-        println!("  Description: {}", credential.description.as_deref().unwrap_or(""));
+        println!(
+            "  Description: {}",
+            credential.description.as_deref().unwrap_or("")
+        );
         println!("  windmillVariable: {}", credential.windmill_variable);
-        println!("  Created: {}", credential.created_at.as_deref().unwrap_or(""));
+        println!(
+            "  Created: {}",
+            credential.created_at.as_deref().unwrap_or("")
+        );
         println!("  ---");
     }
 }
@@ -446,10 +459,19 @@ fn format_credential(credential: &Credential) {
     println!("  ID: {}", credential.id);
     println!("  Name: {}", credential.name);
     println!("  Type: {}", credential.credential_type);
-    println!("  Description: {}", credential.description.as_deref().unwrap_or(""));
+    println!(
+        "  Description: {}",
+        credential.description.as_deref().unwrap_or("")
+    );
     println!("  windmillVariable: {}", credential.windmill_variable);
-    println!("  Created: {}", credential.created_at.as_deref().unwrap_or(""));
-    println!("  Last Used: {}", credential.last_used_at.as_deref().unwrap_or(""));
+    println!(
+        "  Created: {}",
+        credential.created_at.as_deref().unwrap_or("")
+    );
+    println!(
+        "  Last Used: {}",
+        credential.last_used_at.as_deref().unwrap_or("")
+    );
     println!("  Content:");
     println!("    {}", credential.content.as_deref().unwrap_or(""));
 }
@@ -485,12 +507,21 @@ fn format_target(target: &Target) {
     println!("  ID: {}", target.id);
     println!("  Name: {}", target.name);
     println!("  Type: {}", target.target_type);
-    println!("  Spec: {}", serde_json::to_string_pretty(&target.spec).unwrap_or_default());
+    println!(
+        "  Spec: {}",
+        serde_json::to_string_pretty(&target.spec).unwrap_or_default()
+    );
     if let Some(ref metadata) = target.metadata {
-        println!("  Metadata: {}", serde_json::to_string_pretty(metadata).unwrap_or_default());
+        println!(
+            "  Metadata: {}",
+            serde_json::to_string_pretty(metadata).unwrap_or_default()
+        );
     }
     println!("  Created: {}", target.created_at.as_deref().unwrap_or(""));
-    println!("  Last Used: {}", target.last_used_at.as_deref().unwrap_or(""));
+    println!(
+        "  Last Used: {}",
+        target.last_used_at.as_deref().unwrap_or("")
+    );
 }
 
 fn format_target_created(target: &Target) {
@@ -498,7 +529,10 @@ fn format_target_created(target: &Target) {
     println!("  ID: {}", target.id);
     println!("  Name: {}", target.name);
     println!("  Type: {}", target.target_type);
-    println!("  Spec: {}", serde_json::to_string_pretty(&target.spec).unwrap_or_default());
+    println!(
+        "  Spec: {}",
+        serde_json::to_string_pretty(&target.spec).unwrap_or_default()
+    );
 }
 
 #[tokio::main]
@@ -517,10 +551,18 @@ async fn main() {
     };
 
     match cli.command {
-        Commands::Systemtender { subcommand } => handle_systemtender_command(&client, subcommand, &cli.output).await,
-        Commands::Credential { subcommand } => handle_credential_command(&client, subcommand, &cli.output).await,
-        Commands::Target { subcommand } => handle_target_command(&client, subcommand, &cli.output).await,
-        Commands::Wish { subcommand } => handle_wish_command(&client, subcommand, &cli.output).await,
+        Commands::Systemtender { subcommand } => {
+            handle_systemtender_command(&client, subcommand, &cli.output).await
+        }
+        Commands::Credential { subcommand } => {
+            handle_credential_command(&client, subcommand, &cli.output).await
+        }
+        Commands::Target { subcommand } => {
+            handle_target_command(&client, subcommand, &cli.output).await
+        }
+        Commands::Wish { subcommand } => {
+            handle_wish_command(&client, subcommand, &cli.output).await
+        }
         Commands::Positions => handle_positions_command(&client, &cli.output).await,
     }
 }
@@ -630,7 +672,11 @@ async fn handle_wish_command(client: &GodonClient, cmd: WishCommands, output: &O
     }
 }
 
-async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderCommands, output: &OutputFormat) {
+async fn handle_systemtender_command(
+    client: &GodonClient,
+    cmd: SystemtenderCommands,
+    output: &OutputFormat,
+) {
     match cmd {
         SystemtenderCommands::List => {
             let response = client.list_systemtenders().await;
@@ -647,7 +693,12 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
             }
         }
 
-        SystemtenderCommands::Create { name, file, wait, timeout } => {
+        SystemtenderCommands::Create {
+            name,
+            file,
+            wait,
+            timeout,
+        } => {
             let content = match std::fs::read_to_string(&file) {
                 Ok(c) => c,
                 Err(e) => write_error(&format!("Failed to read file: {}", e)),
@@ -657,10 +708,18 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
             // path until the row is terminal-for-create or the bound;
             // the verdict rides the row state, the exit code carries it.
             if wait {
-                let response = client.create_systemtender_from_yaml_wait(&content, &name, timeout).await;
+                let response = client
+                    .create_systemtender_from_yaml_wait(&content, &name, timeout)
+                    .await;
                 if response.status == Some(409) {
                     write_error_exit(
-                        &format!("Name already taken: {}", response.error.as_deref().unwrap_or("a systemtender with this name exists")),
+                        &format!(
+                            "Name already taken: {}",
+                            response
+                                .error
+                                .as_deref()
+                                .unwrap_or("a systemtender with this name exists")
+                        ),
                         EXIT_NAME_TAKEN,
                     );
                 }
@@ -691,7 +750,13 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
             let response = client.create_systemtender_from_yaml(&content, &name).await;
             if response.status == Some(409) {
                 write_error_exit(
-                    &format!("Name already taken: {}", response.error.as_deref().unwrap_or("a systemtender with this name exists")),
+                    &format!(
+                        "Name already taken: {}",
+                        response
+                            .error
+                            .as_deref()
+                            .unwrap_or("a systemtender with this name exists")
+                    ),
                     EXIT_NAME_TAKEN,
                 );
             }
@@ -733,13 +798,24 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
                 Err(e) => write_error(&format!("Failed to read file: {}", e)),
             };
 
-            let response = client.update_systemtender_from_yaml(&id, &content, force).await;
+            let response = client
+                .update_systemtender_from_yaml(&id, &content, force)
+                .await;
             if response.success {
                 if let Some(data) = response.data {
                     if matches!(output, OutputFormat::Text) {
-                        let systemtender_id = data.get("systemtender_id").and_then(|v| v.as_str()).unwrap_or(&id);
-                        let trials_cleared = data.get("trials_cleared").and_then(|v| v.as_bool()).unwrap_or(false);
-                        let history = data.get("config_history_entries").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let systemtender_id = data
+                            .get("systemtender_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&id);
+                        let trials_cleared = data
+                            .get("trials_cleared")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        let history = data
+                            .get("config_history_entries")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0);
                         println!("Systemtender updated successfully:");
                         println!("  ID: {}", systemtender_id);
                         println!("  Trials cleared: {}", trials_cleared);
@@ -780,7 +856,12 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
             }
         }
 
-        SystemtenderCommands::Purge { id, force, wait, timeout } => {
+        SystemtenderCommands::Purge {
+            id,
+            force,
+            wait,
+            timeout,
+        } => {
             let response = client.delete_systemtender(&id, force).await;
             if !response.success {
                 write_error(response.error.as_deref().unwrap_or("Unknown error"));
@@ -788,7 +869,10 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
 
             if matches!(output, OutputFormat::Text) {
                 if force {
-                    println!("Systemtender deletion requested (force, workers cancelled): {}", id);
+                    println!(
+                        "Systemtender deletion requested (force, workers cancelled): {}",
+                        id
+                    );
                 } else {
                     println!("Systemtender deletion requested: {}", id);
                 }
@@ -803,7 +887,10 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
                 let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout);
                 loop {
                     if std::time::Instant::now() >= deadline {
-                        eprintln!("Purge expectation unmet: the systemtender is still visible after {}s", timeout);
+                        eprintln!(
+                            "Purge expectation unmet: the systemtender is still visible after {}s",
+                            timeout
+                        );
                         std::process::exit(EXIT_PURGE_UNMET);
                     }
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -828,7 +915,11 @@ async fn handle_systemtender_command(client: &GodonClient, cmd: SystemtenderComm
     }
 }
 
-async fn handle_credential_command(client: &GodonClient, cmd: CredentialCommands, output: &OutputFormat) {
+async fn handle_credential_command(
+    client: &GodonClient,
+    cmd: CredentialCommands,
+    output: &OutputFormat,
+) {
     match cmd {
         CredentialCommands::List => {
             let response = client.list_credentials().await;
@@ -899,18 +990,28 @@ async fn handle_credential_command(client: &GodonClient, cmd: CredentialCommands
 mod async_contract_tests {
     use super::{Cli, Commands, SystemtenderCommands};
     use clap::Parser;
-    use godon_cli::{create_wait_met, EXIT_CREATE_UNMET, EXIT_ERROR, EXIT_NAME_TAKEN, EXIT_OK, EXIT_PURGE_UNMET};
+    use godon_cli::{
+        create_wait_met, EXIT_CREATE_UNMET, EXIT_ERROR, EXIT_NAME_TAKEN, EXIT_OK, EXIT_PURGE_UNMET,
+    };
 
     // ── arg parse: the wait/timeout surface (designs/2026-10-10) ──
 
     #[test]
     fn create_defaults_to_async_with_timeout_60() {
         let cli = Cli::try_parse_from([
-            "godon_cli", "systemtender", "create",
-            "--name", "bench", "--file", "cfg.yaml",
-        ]).expect("parse");
+            "godon_cli",
+            "systemtender",
+            "create",
+            "--name",
+            "bench",
+            "--file",
+            "cfg.yaml",
+        ])
+        .expect("parse");
         match cli.command {
-            Commands::Systemtender { subcommand: SystemtenderCommands::Create { wait, timeout, .. } } => {
+            Commands::Systemtender {
+                subcommand: SystemtenderCommands::Create { wait, timeout, .. },
+            } => {
                 assert!(!wait, "async is the default");
                 assert_eq!(timeout, 60);
             }
@@ -921,12 +1022,22 @@ mod async_contract_tests {
     #[test]
     fn create_parses_wait_and_timeout() {
         let cli = Cli::try_parse_from([
-            "godon_cli", "systemtender", "create",
-            "--name", "bench", "--file", "cfg.yaml",
-            "--wait", "--timeout", "90",
-        ]).expect("parse");
+            "godon_cli",
+            "systemtender",
+            "create",
+            "--name",
+            "bench",
+            "--file",
+            "cfg.yaml",
+            "--wait",
+            "--timeout",
+            "90",
+        ])
+        .expect("parse");
         match cli.command {
-            Commands::Systemtender { subcommand: SystemtenderCommands::Create { wait, timeout, .. } } => {
+            Commands::Systemtender {
+                subcommand: SystemtenderCommands::Create { wait, timeout, .. },
+            } => {
                 assert!(wait);
                 assert_eq!(timeout, 90);
             }
@@ -937,12 +1048,20 @@ mod async_contract_tests {
     #[test]
     fn purge_parses_wait_and_timeout() {
         let cli = Cli::try_parse_from([
-            "godon_cli", "systemtender", "purge",
-            "--id", "550e8400-e29b-41d4-a716-446655440000",
-            "--wait", "--timeout", "30",
-        ]).expect("parse");
+            "godon_cli",
+            "systemtender",
+            "purge",
+            "--id",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "--wait",
+            "--timeout",
+            "30",
+        ])
+        .expect("parse");
         match cli.command {
-            Commands::Systemtender { subcommand: SystemtenderCommands::Purge { wait, timeout, .. } } => {
+            Commands::Systemtender {
+                subcommand: SystemtenderCommands::Purge { wait, timeout, .. },
+            } => {
                 assert!(wait);
                 assert_eq!(timeout, 30);
             }
@@ -954,7 +1073,13 @@ mod async_contract_tests {
 
     #[test]
     fn exit_codes_are_distinct() {
-        let codes = [EXIT_OK, EXIT_ERROR, EXIT_NAME_TAKEN, EXIT_CREATE_UNMET, EXIT_PURGE_UNMET];
+        let codes = [
+            EXIT_OK,
+            EXIT_ERROR,
+            EXIT_NAME_TAKEN,
+            EXIT_CREATE_UNMET,
+            EXIT_PURGE_UNMET,
+        ];
         for i in 0..codes.len() {
             for j in (i + 1)..codes.len() {
                 assert_ne!(codes[i], codes[j], "exit codes must be distinct");
