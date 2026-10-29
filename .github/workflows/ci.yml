@@ -1,4 +1,4 @@
-name: build_and_test_godon_cli
+name: Rust Integrity
 
 on:
   pull_request:
