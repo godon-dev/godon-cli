@@ -303,7 +303,7 @@ async fn handle_positions_command(client: &GodonClient, output: &OutputFormat) {
     let response = client.get_positions().await;
     if response.success {
         match (&response.data, output) {
-            (Some(data), OutputFormat::Text) => format_positions(&data),
+            (Some(data), OutputFormat::Text) => format_positions(data),
             (Some(data), _) => format_output(&data, output),
             _ => {}
         }
@@ -427,6 +427,7 @@ fn format_systemtender(systemtender: &Systemtender) {
     println!("  Created: {}", systemtender.created_at);
 }
 
+#[allow(dead_code)]
 fn format_systemtender_summary(systemtender: &SystemtenderSummary) {
     println!("Systemtender created successfully:");
     println!("  ID: {}", systemtender.id);

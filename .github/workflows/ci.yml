@@ -20,6 +20,16 @@ jobs:
         git clean -ffdx
         git status
 
+    - name: cargo fmt
+      run: |
+        rustup component add rustfmt
+        cargo fmt --check
+
+    - name: cargo clippy
+      run: |
+        rustup component add clippy
+        cargo clippy --all-targets -- -D warnings
+
     - name: Install Nix
       uses: cachix/install-nix-action@v25
       with:

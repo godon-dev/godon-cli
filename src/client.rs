@@ -45,8 +45,6 @@ impl GodonClient {
     fn base_url(&self) -> String {
         let scheme = if self.config.hostname.starts_with("https://") {
             "https"
-        } else if self.config.hostname.starts_with("http://") {
-            "http"
         } else {
             "http"
         };
